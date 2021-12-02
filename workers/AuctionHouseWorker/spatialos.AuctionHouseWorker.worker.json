@@ -1,0 +1,69 @@
+{
+  "build": {
+    "tasks_filename": "build.json"
+  },
+  "managed": {
+    "linux": {
+      "artifact_name": "AuctionHouseWorker@Linux.zip",
+      "command": "./AuctionHouseWorker",
+      "arguments": [
+        "receptionist",
+        "${IMPROBABLE_RECEPTIONIST_HOST}",
+        "${IMPROBABLE_RECEPTIONIST_PORT}",
+        "${IMPROBABLE_WORKER_ID}"
+      ]
+    },
+    "windows": {
+      "artifact_name": "AuctionHouseWorker@Windows.zip",
+      "command": "./AuctionHouseWorker.exe",
+      "arguments": [
+        "receptionist",
+        "${IMPROBABLE_RECEPTIONIST_HOST}",
+        "${IMPROBABLE_RECEPTIONIST_PORT}",
+        "${IMPROBABLE_WORKER_ID}"
+      ]
+    },
+    "macos": {
+      "artifact_name": "AuctionHouseWorker@Mac.zip",
+      "command": "./AuctionHouseWorker",
+      "arguments": [
+        "receptionist",
+        "${IMPROBABLE_RECEPTIONIST_HOST}",
+        "${IMPROBABLE_RECEPTIONIST_PORT}",
+        "${IMPROBABLE_WORKER_ID}"
+      ]
+    }
+  },
+  "external": {
+    "local": {
+      "run_type": "EXECUTABLE_ZIP",
+      "linux": {
+        "artifact_name": "AuctionHouseWorker@Linux.zip",
+        "command": "./AuctionHouseWorker",
+        "arguments": [
+          "receptionist",
+          "localhost",
+          "7777"
+        ]
+      },
+      "windows": {
+        "artifact_name": "AuctionHouseWorker@Windows.zip",
+        "command": "./AuctionHouseWorker.exe",
+        "arguments": [
+          "receptionist",
+          "localhost",
+          "7777"
+        ]
+      },
+      "macos": {
+        "artifact_name": "AuctionHouseWorker@Mac.zip",
+        "command": "./AuctionHouseWorker",
+        "arguments": [
+          "receptionist",
+          "localhost",
+          "7777"
+        ]
+      }
+    }
+  }
+}

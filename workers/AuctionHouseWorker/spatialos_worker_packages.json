@@ -1,0 +1,30 @@
+{
+  "targets": [
+    {
+      "path": "../../dependencies/worker_sdk/headers",
+      "type": "worker_sdk",
+      "packages": [
+        {
+          "name": "cpp_headers"
+        }
+      ]
+    },
+    {
+      "path": "../../dependencies/worker_sdk/lib",
+      "type": "worker_sdk",
+      "packages": [
+        {
+          "name": "c-dynamic-x86_64-clang-macos",
+          "platform": "macos"
+        },
+        {
+          "name": "c-dynamic-x86_64-clang1000-linux",
+          "platform": "linux"
+        },
+        {
+          "name": "c-dynamic-x86_64-vc141_md-win32",
+          "platform": "windows"
+        }
+      ]
+    }
+  ]}

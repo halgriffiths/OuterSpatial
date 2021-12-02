@@ -1,0 +1,96 @@
+{
+  "tasks": [
+    {
+      "name": "Codegen",
+      "steps": [
+        {
+          "name": "C++",
+          "arguments": [
+            "process_schema",
+            "generate",
+            "--cachePath=../../.spatialos/schema_codegen_cache",
+            "--output=../../generated_code/cpp",
+            "--language=cpp"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Build",
+      "steps": [
+        {
+          "name": "Codegen",
+          "arguments": [
+            "invoke-task",
+            "Codegen"
+          ]
+        },
+        {
+          "name": "Install dependencies",
+          "arguments": [
+            "worker_package",
+            "unpack"
+          ]
+        },
+        {
+          "name": "CMake build directory",
+          "command": "cmake",
+          "arguments": [
+            "-E",
+            "make_directory",
+            "cmake_build"
+          ]
+        },
+        {
+          "name": "Project files from CMake",
+          "working_path": "cmake_build",
+          "command": "bash",
+          "arguments": [
+            "../cmake_configure.sh"
+          ]
+        },
+        {
+          "name": "Worker zip",
+          "working_path": "cmake_build",
+          "command": "cmake",
+          "arguments": [
+            "--build", ".",
+            "--config", "Release",
+            "--target", "AuctionHouseWorkerZip"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Clean",
+      "steps": [
+        {
+          "name": "Generated code",
+          "arguments": [
+            "process_schema",
+            "clean",
+            "--cachePath=../../.spatialos/schema_codegen_cache",
+            "../../.spatialos/schema_codegen_proto",
+            "../../generated_code/cpp"
+          ]
+        },
+        {
+          "name": "Dependencies",
+          "arguments": [
+            "worker_package",
+            "clean"
+          ]
+        },
+        {
+          "name": "CMake build",
+          "command": "cmake",
+          "arguments": [
+            "-E",
+            "remove_directory",
+            "cmake_build"
+          ]
+        }
+      ]
+    }
+  ]
+}

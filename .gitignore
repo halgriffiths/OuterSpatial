@@ -1,6 +1,9 @@
 # SpatialOS project build directory
 build/
 
+# IDE settings
+.idea
+
 # Cache and other project metadata
 .spatialos/
 

@@ -4,3 +4,4 @@
 
 # CMake
 cmake_build/
+cmake-build-debug/
