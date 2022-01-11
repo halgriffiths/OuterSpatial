@@ -12,6 +12,9 @@
 #include <sample.h>
 #include <thread>
 
+#include <string>
+#include "../../outerspatial/outerspatial_engine.h"
+
 // This keeps track of all components and component sets that this worker uses.
 // Used to make a worker::ComponentRegistry.
 using ComponentRegistry =
@@ -160,7 +163,15 @@ int main(int argc, char** argv) {
   double elapsed_time = 0.0;
   auto last_tick_time = std::chrono::steady_clock::now();
 
+  bool onetime = true;
   while (is_connected) {
+    if (onetime) {
+      //Test OuterSpatial library has been imported correctly
+      std::cout << "onetime:" << std::endl;
+      std::string good = "ore";
+      connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse", "Producer of ore is: " + GetProducer(good) );
+      onetime = false;
+    }
     view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
 
     if (view.GetAuthority<sample::LoginListenerSet>(listenerEntity) ==

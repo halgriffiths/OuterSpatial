@@ -8,6 +8,9 @@
 #include "../metrics/metrics.h"
 #include "../metrics/display.h"
 
+#include <optional>
+#include <atomic>
+
 class PlayerTrader : public Trader {
 private:
     int MAX_PROCESSED_MESSAGES_PER_FLUSH = 100;
@@ -36,13 +39,13 @@ private:
 public:
     PlayerTrader(std::uint64_t start_time, int id, std::weak_ptr<AuctionHouse> auction_house_ptr, double starting_money, double inv_capacity, const std::vector<InventoryItem> &starting_inv, std::vector<std::string> tracked_goods, std::vector<std::string> tracked_roles, Log::LogLevel verbosity)
             : Trader(id, "player")
-            , auction_house(std::move(auction_house_ptr))
-            , money(starting_money)
             , unique_name(class_name + std::to_string(id))
-            , logger(FileLogger(verbosity, unique_name))
             , tracked_goods(tracked_goods)
             , tracked_roles(tracked_roles)
-            , local_metrics(start_time, tracked_goods,tracked_roles) {
+            , auction_house(std::move(auction_house_ptr))
+            , local_metrics(start_time, tracked_goods,tracked_roles)
+            , logger(FileLogger(verbosity, unique_name))
+            , money(starting_money) {
         //construct inv
         auction_house_id = auction_house.lock()->id;
         _inventory = Inventory(inv_capacity, starting_inv);
