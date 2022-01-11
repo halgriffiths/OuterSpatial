@@ -45,6 +45,10 @@ type RegisterRequest {
   EntityId sender_id = 1;
 }
 
+type RegisterResponse {
+  bool accepted = 1;
+}
+
 type ProduceCommandRequest {
   EntityId sender_id = 1;
 }

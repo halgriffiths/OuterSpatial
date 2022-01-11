@@ -5,6 +5,7 @@ import "commodity.schema";
 import "messages.schema";
 
 
+
 type PriceInfo {
   // Latest price value
   double curr_price = 1;
@@ -20,43 +21,48 @@ type MarketListing {
   PriceInfo price_info = 2;
 }
 
-component FoodMarket {
+component RegisterCommandComponent {
   id = 3000;
+  command messages.RegisterResponse register_command(messages.RegisterRequest);
+}
+
+component FoodMarket {
+  id = 3010;
   MarketListing listing = 1;
   command messages.BidResult make_bid_offer(messages.BidOffer);
   command messages.AskResult make_ask_offer(messages.AskOffer);
 }
 
 component WoodMarket {
-  id = 3001;
+  id = 3011;
   MarketListing listing = 1;
   command messages.BidResult make_bid_offer(messages.BidOffer);
   command messages.AskResult make_ask_offer(messages.AskOffer);
 }
 
 component FertilizerMarket {
-  id = 3002;
+  id = 3012;
   MarketListing listing = 1;
   command messages.BidResult make_bid_offer(messages.BidOffer);
   command messages.AskResult make_ask_offer(messages.AskOffer);
 }
 
 component OreMarket {
-  id = 3003;
+  id = 3013;
   MarketListing listing = 1;
   command messages.BidResult make_bid_offer(messages.BidOffer);
   command messages.AskResult make_ask_offer(messages.AskOffer);
 }
 
 component MetalMarket {
-  id = 3004;
+  id = 3014;
   MarketListing listing = 1;
   command messages.BidResult make_bid_offer(messages.BidOffer);
   command messages.AskResult make_ask_offer(messages.AskOffer);
 }
 
 component ToolsMarket {
-  id = 3005;
+  id = 3015;
   MarketListing listing = 1;
   command messages.BidResult make_bid_offer(messages.BidOffer);
   command messages.AskResult make_ask_offer(messages.AskOffer);

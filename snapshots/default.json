@@ -82,6 +82,7 @@
       "z": 0.0
     }
   },
+  "market.RegisterCommandComponent": {},
   "market.FoodMarket": {
     "listing": {
       "item": {
