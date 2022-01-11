@@ -1,0 +1,63 @@
+package market;
+
+import "improbable/standard_library.schema";
+import "commodity.schema";
+import "messages.schema";
+
+
+type PriceInfo {
+  // Latest price value
+  double curr_price = 1;
+  // Average price value over last 50 AI-ticks
+  double recent_price = 2;
+
+  int32 curr_net_supply = 3;
+  int32 recent_net_supply = 4;
+}
+
+type MarketListing {
+  commodity.Commodity item = 1;
+  PriceInfo price_info = 2;
+}
+
+component FoodMarket {
+  id = 3000;
+  MarketListing listing = 1;
+  command messages.BidResult make_bid_offer(messages.BidOffer);
+  command messages.AskResult make_ask_offer(messages.AskOffer);
+}
+
+component WoodMarket {
+  id = 3001;
+  MarketListing listing = 1;
+  command messages.BidResult make_bid_offer(messages.BidOffer);
+  command messages.AskResult make_ask_offer(messages.AskOffer);
+}
+
+component FertilizerMarket {
+  id = 3002;
+  MarketListing listing = 1;
+  command messages.BidResult make_bid_offer(messages.BidOffer);
+  command messages.AskResult make_ask_offer(messages.AskOffer);
+}
+
+component OreMarket {
+  id = 3003;
+  MarketListing listing = 1;
+  command messages.BidResult make_bid_offer(messages.BidOffer);
+  command messages.AskResult make_ask_offer(messages.AskOffer);
+}
+
+component MetalMarket {
+  id = 3004;
+  MarketListing listing = 1;
+  command messages.BidResult make_bid_offer(messages.BidOffer);
+  command messages.AskResult make_ask_offer(messages.AskOffer);
+}
+
+component ToolsMarket {
+  id = 3005;
+  MarketListing listing = 1;
+  command messages.BidResult make_bid_offer(messages.BidOffer);
+  command messages.AskResult make_ask_offer(messages.AskOffer);
+}

@@ -1,0 +1,9 @@
+package commodity;
+
+import "improbable/standard_library.schema";
+
+type Commodity {
+    string name = 1;
+    // how much space 1 unit of the commodity takes up in inventory
+    double size = 2;
+}

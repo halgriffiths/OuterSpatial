@@ -69,3 +69,157 @@
     }
   }
 }
+{
+  "__entity_id": "3",
+  "improbable.Metadata": {
+    "entity_type":"AuctionHouseEntity"
+  },
+  "improbable.Persistence": {},
+  "improbable.Position": {
+    "coords": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0
+    }
+  },
+  "market.FoodMarket": {
+    "listing": {
+      "item": {
+        "name": "food",
+        "size" : 0.5
+      },
+      "price_info": {
+        "curr_price": 10.0,
+        "recent_price": 10.0,
+        "curr_net_supply": 0,
+        "recent_net_supply": 0
+      }
+    }
+  },
+  "market.WoodMarket": {
+    "listing": {
+      "item": {
+        "name": "wood",
+        "size" : 1
+      },
+      "price_info": {
+        "curr_price": 10.0,
+        "recent_price": 10.0,
+        "curr_net_supply": 0,
+        "recent_net_supply": 0
+      }
+    }
+  },
+  "market.FertilizerMarket": {
+    "listing": {
+      "item": {
+        "name": "fertilizer",
+        "size" : 0.1
+      },
+      "price_info": {
+        "curr_price": 10.0,
+        "recent_price": 10.0,
+        "curr_net_supply": 0,
+        "recent_net_supply": 0
+      }
+    }
+  },
+  "market.OreMarket": {
+    "listing": {
+      "item": {
+        "name": "ore",
+        "size" : 1
+      },
+      "price_info": {
+        "curr_price": 10.0,
+        "recent_price": 10.0,
+        "curr_net_supply": 0,
+        "recent_net_supply": 0
+      }
+    }
+  },
+  "market.MetalMarket": {
+    "listing": {
+      "item": {
+        "name": "metal",
+        "size" : 1
+      },
+      "price_info": {
+        "curr_price": 10.2,
+        "recent_price": 10.0,
+        "curr_net_supply": 0,
+        "recent_net_supply": 0
+      }
+    }
+  },
+  "market.ToolsMarket": {
+    "listing": {
+      "item": {
+        "name": "tools",
+        "size" : 1
+      },
+      "price_info": {
+        "curr_price": 10.2,
+        "recent_price": 10.0,
+        "curr_net_supply": 0,
+        "recent_net_supply": 0
+      }
+    }
+  }
+}
+{
+  "__entity_id": "4",
+  "improbable.Metadata": {
+    "entity_type":"TraderEntity"
+  },
+  "improbable.Persistence": {},
+  "improbable.Position": {
+    "coords": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0
+    }
+  },
+  "trader.Metadata": {
+    "name": "food",
+    "birthday" : 1,
+    "ai_flag": true
+  },
+  "trader.Inventory": {
+    "cash": 500.0,
+    "food": {
+      "size": 0.5,
+      "quantity": 10
+    },
+    "wood": {
+      "size": 1,
+      "quantity": 5
+    },
+    "fertilizer": {
+      "size": 0.1,
+      "quantity": 5
+    },
+    "ore": {
+      "size": 1,
+      "quantity": 0
+    },
+    "metal": {
+      "size": 1,
+      "quantity": 0
+    },
+    "tools": {
+      "size": 1,
+      "quantity": 3
+    },
+    "capacity": 50
+  },
+  "trader.Buildings": {
+    "farms": 1,
+    "logging_camps": 0,
+    "composters": 0,
+    "mines": 0,
+    "smelters": 0,
+    "factories": 0,
+    "idle_tax" : 20
+  }
+}

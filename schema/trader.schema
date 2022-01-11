@@ -1,0 +1,45 @@
+package trader;
+import "messages.schema";
+
+type InventoryItem {
+  double size = 1;
+  int32 quantity = 2;
+}
+
+component Metadata {
+  id = 4000;
+  string name = 1;
+  uint64 birthday = 2;
+  bool ai_flag = 3;
+}
+
+component Inventory {
+  id = 4001;
+  double cash = 1;
+  InventoryItem food = 2;
+  InventoryItem wood = 3;
+  InventoryItem fertilizer = 4;
+
+  InventoryItem ore = 5;
+  InventoryItem metal = 6;
+  InventoryItem tools = 7;
+
+  int32 capacity = 8;
+}
+
+component Buildings {
+  id = 4002;
+  int32 farms = 1;
+  int32 logging_camps = 2;
+  int32 composters = 3;
+  int32 mines = 4;
+  int32 smelters = 5;
+  int32 factories = 6;
+
+  double idle_tax = 7;
+}
+
+component ProduceCommandComponent {
+  id = 4003;
+  command messages.ProduceCommandResponse produce_command(messages.ProduceCommandRequest);
+}

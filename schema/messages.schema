@@ -1,0 +1,54 @@
+package messages;
+
+enum TradeOutcome {
+  FILLED = 1;
+  // Some (but not all) of the requested goods were bought/sold
+  MIXED = 2;
+  // Nothing was bought/sold
+  EMPTY = 3;
+  REJECTED = 4;
+}
+
+type BidOffer {
+  EntityId sender_id = 1;
+  int64 expiry_time = 2;
+  int32 quantity = 3;
+  double unit_price = 4;
+}
+
+type AskOffer {
+  EntityId sender_id = 1;
+  int64 expiry_time = 2;
+  int32 quantity = 3;
+  double unit_price = 4;
+}
+
+type BidResult {
+  int32 quantity_bought = 1;
+  int32 quantity_unbought = 2;
+  double avg_price = 3;
+
+  bool broker_fee_paid = 4;
+  TradeOutcome outcome = 5;
+}
+
+type AskResult {
+  int32 quantity_sold = 1;
+  int32 quantity_unsold = 2;
+  double avg_price = 3;
+
+  bool broker_fee_paid = 4;
+  TradeOutcome outcome = 5;
+}
+
+type RegisterRequest {
+  EntityId sender_id = 1;
+}
+
+type ProduceCommandRequest {
+  EntityId sender_id = 1;
+}
+
+type ProduceCommandResponse {
+  bool should_shutdown = 1;
+}
