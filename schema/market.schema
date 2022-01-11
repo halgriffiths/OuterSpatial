@@ -67,3 +67,9 @@ component ToolsMarket {
   command messages.BidResult make_bid_offer(messages.BidOffer);
   command messages.AskResult make_ask_offer(messages.AskOffer);
 }
+
+
+component_set ServerMarketComponentSet {
+  id = 3020;
+  components = [RegisterCommandComponent, FoodMarket, WoodMarket, FertilizerMarket, OreMarket, MetalMarket, ToolsMarket];
+}

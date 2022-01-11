@@ -72,6 +72,34 @@
 {
   "__entity_id": "3",
   "improbable.Metadata": {
+    "entity_type":"AuctionHousePartitionEntity"
+  },
+  "improbable.Persistence": {},
+  "improbable.Position": {
+    "coords": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0
+    }
+  }
+}
+{
+  "__entity_id": "4",
+  "improbable.Metadata": {
+    "entity_type":"AITraderPartitionEntity"
+  },
+  "improbable.Persistence": {},
+  "improbable.Position": {
+    "coords": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0
+    }
+  }
+}
+{
+  "__entity_id": "10",
+  "improbable.Metadata": {
     "entity_type":"AuctionHouseEntity"
   },
   "improbable.Persistence": {},
@@ -81,6 +109,14 @@
       "y": 0.0,
       "z": 0.0
     }
+  },
+  "improbable.AuthorityDelegation": {
+    "delegations": [
+      {
+        "key": 3020,
+        "value": 3
+      }
+    ]
   },
   "market.RegisterCommandComponent": {},
   "market.FoodMarket": {
@@ -169,7 +205,7 @@
   }
 }
 {
-  "__entity_id": "4",
+  "__entity_id": "11",
   "improbable.Metadata": {
     "entity_type":"TraderEntity"
   },
@@ -180,6 +216,18 @@
       "y": 0.0,
       "z": 0.0
     }
+  },
+  "improbable.AuthorityDelegation": {
+    "delegations": [
+      {
+        "key": 4004,
+        "value": 3
+      },
+      {
+        "key": 4005,
+        "value": 4
+      }
+    ]
   },
   "trader.Metadata": {
     "name": "food",

@@ -43,3 +43,13 @@ component ProduceCommandComponent {
   id = 4003;
   command messages.ProduceCommandResponse produce_command(messages.ProduceCommandRequest);
 }
+
+component_set ServerTraderComponentSet {
+  id = 4004;
+  components = [Inventory, ProduceCommandComponent];
+}
+
+component_set ClientTraderComponentSet {
+  id = 4005;
+  components = [Buildings, Metadata];
+}
