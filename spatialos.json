@@ -1,6 +1,6 @@
 {
-  "name": "your_project_name_here",
-  "project_version": "1.0.0",
+  "name": "outer_spatial",
+  "project_version": "0.0.1",
   "sdk_version": "15.0.0",
   "dependencies": [
     {
