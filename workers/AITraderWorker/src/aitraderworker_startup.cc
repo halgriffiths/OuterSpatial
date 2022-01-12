@@ -7,33 +7,19 @@
 #include <improbable/view.h>
 #include <improbable/worker.h>
 
-// Schema includes
 #include <improbable/restricted/system_components.h>
 #include <improbable/standard_library.h>
 #include <sample.h>
 #include <market.h>
 #include <trader.h>
 
-#include <thread>
-#include <string>
-
 #include "../../outerspatial/outerspatial_engine.h"
+#include <thread>
 
 // This keeps track of all components and component sets that this worker uses.
 // Used to make a worker::ComponentRegistry.
 using ComponentRegistry =
-    worker::Schema<
-        market::MetalMarket,
-        market::FoodMarket,
-        market::FertilizerMarket,
-        market::WoodMarket,
-        market::MetalMarket,
-        market::OreMarket,
-        market::ToolsMarket,
-        market::RegisterCommandComponent,
-        trader::Inventory,
-        trader::ProduceCommandComponent,
-        sample::LoginListenerSet, sample::PositionSet, improbable::Position,
+    worker::Schema<sample::LoginListenerSet, sample::PositionSet, improbable::Position,
                    improbable::restricted::Worker, improbable::restricted::Partition>;
 
 // Constants and parameters
@@ -43,7 +29,6 @@ const std::uint32_t kGetOpListTimeoutInMilliseconds = 100;
 
 const worker::EntityId listenerEntity = 1;
 const worker::EntityId serverPartitionId = 2;
-const worker::EntityId auctionhousePartitionId = 3;
 
 worker::Connection
 ConnectWithReceptionist(const std::string hostname, const std::uint16_t port,
@@ -126,7 +111,7 @@ int main(int argc, char** argv) {
   if (arguments.size() == 4) {
     workerId = arguments[3];
   } else {
-    workerId = parameters.WorkerType + "_AuctionHouseWorker_" + get_random_characters(4);
+    workerId = parameters.WorkerType + "_AITraderWorker_" + get_random_characters(4);
   }
 
   std::cout << "[local] Connecting to SpatialOS as " << workerId << "..." << std::endl;
@@ -176,29 +161,28 @@ int main(int argc, char** argv) {
                                   "Worker with ID " + op.Data.worker_id() + " connected.");
       });
 
-  {
-    connection.SendCommandRequest<AssignPartitionCommand>(
-        connection.GetWorkerEntityId(), {auctionhousePartitionId}, /* default timeout */ {});
-  }
   double elapsed_time = 0.0;
   auto last_tick_time = std::chrono::steady_clock::now();
-  bool onetime = true;
-  while (is_connected) {
-    if (onetime) {
-      //Test OuterSpatial library has been imported correctly
-      std::string good = "ore";
-      connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse", "Producer of ore is: " + GetProducer(good) );
-      onetime = false;
-    }
-    view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
 
+  bool onetime = false;
+  while (is_connected) {
+    view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
+    if (onetime) {
+      std::string good = "wood";
+      connection.SendLogMessage(worker::LogLevel::kInfo, "AITrader",
+                                "Producer of wood is: " + GetProducer(good) );
+
+    }
     if (view.GetAuthority<sample::LoginListenerSet>(listenerEntity) ==
         worker::Authority::kAuthoritative) {
       improbable::Position::Update pos_update;
       pos_update.set_coords({std::sin(elapsed_time), 0.0, std::cos(elapsed_time)});
       connection.SendComponentUpdate<improbable::Position>(listenerEntity, pos_update);
+    } else if (onetime){
+      connection.SendLogMessage(worker::LogLevel::kInfo, "AITrader",
+                                "Not authoritative over listener.");
     }
-
+    onetime = false;
     auto now = std::chrono::steady_clock::now();
     elapsed_time += std::chrono::duration<double>(now - last_tick_time)
                         .count();  // Amount of time since last tick, in seconds

@@ -43,7 +43,7 @@
     ]
   },
   "improbable.Metadata": {
-    "entity_type":"ServerTestEntity"
+    "entity_type":"ListenerEntity"
   },
   "improbable.Persistence": {},
   "improbable.Position": {
