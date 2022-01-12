@@ -1,6 +1,8 @@
 #ifndef BAZAAR_BOT_H
 #define BAZAAR_BOT_H
 
+#include <improbable/view.h>
+#include <improbable/worker.h>
 
 #include "common/concurrency.h"
 #include "common/agent.h"
@@ -30,7 +32,6 @@ std::shared_ptr<AITrader> CreateAndRegister(int id,
                                                int tick_time_ms,
                                                Log::LogLevel log_level
 ) {
-
     auto trader = std::make_shared<AITrader>(id, auction_house, std::move(AI_logic), name, starting_money, inv_capacity, inv, tick_time_ms,  log_level);
     trader->SendMessage(*Message(id).AddRegisterRequest(std::move(RegisterRequest(trader->id, trader))), auction_house->id);
     trader->TickOnce();
