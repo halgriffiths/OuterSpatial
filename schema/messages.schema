@@ -24,21 +24,25 @@ type AskOffer {
 }
 
 type BidResult {
-  int32 quantity_bought = 1;
-  int32 quantity_unbought = 2;
-  double avg_price = 3;
+  string good = 1;
 
-  bool broker_fee_paid = 4;
-  TradeOutcome outcome = 5;
+  int32 quantity_bought = 2;
+  int32 quantity_unbought = 3;
+  double avg_price = 4;
+
+  bool broker_fee_paid = 5;
+  TradeOutcome outcome = 6;
 }
 
 type AskResult {
-  int32 quantity_sold = 1;
-  int32 quantity_unsold = 2;
-  double avg_price = 3;
+  string good = 1;
 
-  bool broker_fee_paid = 4;
-  TradeOutcome outcome = 5;
+  int32 quantity_sold = 2;
+  int32 quantity_unsold = 3;
+  double avg_price = 4;
+
+  bool broker_fee_paid = 5;
+  TradeOutcome outcome = 6;
 }
 
 type RegisterRequest {

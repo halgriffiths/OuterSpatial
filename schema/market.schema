@@ -25,51 +25,47 @@ component RegisterCommandComponent {
   id = 3000;
   command messages.RegisterResponse register_command(messages.RegisterRequest);
 }
+component MakeBidOfferCommandComponent {
+  id = 3001;
+  command messages.BidResult make_bid_offer(messages.BidOffer);
+}
+component MakeAskOfferCommandComponent {
+  id = 3002;
+  command messages.AskResult make_ask_offer(messages.AskOffer);
+}
 
 component FoodMarket {
   id = 3010;
   MarketListing listing = 1;
-  command messages.BidResult make_bid_offer(messages.BidOffer);
-  command messages.AskResult make_ask_offer(messages.AskOffer);
 }
 
 component WoodMarket {
   id = 3011;
   MarketListing listing = 1;
-  command messages.BidResult make_bid_offer(messages.BidOffer);
-  command messages.AskResult make_ask_offer(messages.AskOffer);
 }
 
 component FertilizerMarket {
   id = 3012;
   MarketListing listing = 1;
-  command messages.BidResult make_bid_offer(messages.BidOffer);
-  command messages.AskResult make_ask_offer(messages.AskOffer);
 }
 
 component OreMarket {
   id = 3013;
   MarketListing listing = 1;
-  command messages.BidResult make_bid_offer(messages.BidOffer);
-  command messages.AskResult make_ask_offer(messages.AskOffer);
 }
 
 component MetalMarket {
   id = 3014;
   MarketListing listing = 1;
-  command messages.BidResult make_bid_offer(messages.BidOffer);
-  command messages.AskResult make_ask_offer(messages.AskOffer);
 }
 
 component ToolsMarket {
   id = 3015;
   MarketListing listing = 1;
-  command messages.BidResult make_bid_offer(messages.BidOffer);
-  command messages.AskResult make_ask_offer(messages.AskOffer);
 }
 
 
 component_set ServerMarketComponentSet {
   id = 3020;
-  components = [RegisterCommandComponent, FoodMarket, WoodMarket, FertilizerMarket, OreMarket, MetalMarket, ToolsMarket];
+  components = [RegisterCommandComponent, MakeBidOfferCommandComponent, MakeAskOfferCommandComponent, FoodMarket, WoodMarket, FertilizerMarket, OreMarket, MetalMarket, ToolsMarket];
 }

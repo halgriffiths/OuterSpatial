@@ -19,8 +19,17 @@
 // This keeps track of all components and component sets that this worker uses.
 // Used to make a worker::ComponentRegistry.
 using ComponentRegistry =
-    worker::Schema<sample::LoginListenerSet, sample::PositionSet, improbable::Position,
-                   improbable::restricted::Worker, improbable::restricted::Partition>;
+    worker::Schema<
+        sample::LoginListenerSet,
+        sample::PositionSet,
+        trader::Metadata,
+        trader::Buildings,
+        market::RegisterCommandComponent,
+        market::MakeBidOfferCommandComponent,
+        market::MakeAskOfferCommandComponent,
+        improbable::Position,
+        improbable::restricted::Worker,
+        improbable::restricted::Partition>;
 
 // Constants and parameters
 const int ErrorExitStatus = 1;

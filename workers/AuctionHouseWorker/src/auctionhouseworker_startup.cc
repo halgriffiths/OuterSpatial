@@ -31,10 +31,18 @@ using ComponentRegistry =
         market::OreMarket,
         market::ToolsMarket,
         market::RegisterCommandComponent,
+        market::MakeBidOfferCommandComponent,
+        market::MakeAskOfferCommandComponent,
         trader::Inventory,
         trader::ProduceCommandComponent,
-        sample::LoginListenerSet, sample::PositionSet, improbable::Position,
-                   improbable::restricted::Worker, improbable::restricted::Partition>;
+        sample::LoginListenerSet,
+        sample::PositionSet,
+        improbable::Position,
+        improbable::Metadata,
+        improbable::Persistence,
+        improbable::AuthorityDelegation,
+        improbable::restricted::Worker,
+        improbable::restricted::Partition>;
 
 // Constants and parameters
 const int ErrorExitStatus = 1;
