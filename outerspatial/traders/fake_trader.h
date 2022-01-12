@@ -52,8 +52,8 @@ private:
     std::vector<OngoingShortage> shortages = {};
     std::vector<OngoingSurplus> surpluses = {};
 public:
-    FakeTrader(int id, std::weak_ptr<AuctionHouse> auction_house_ptr)
-        : Trader(id, "fake")
+    FakeTrader(int id, worker::Connection& connection, worker::View& view, std::weak_ptr<AuctionHouse> auction_house_ptr)
+        : Trader(id, "fake", connection, view)
         , auction_house(std::move(auction_house_ptr)) {
         auction_house_id = auction_house.lock()->id;
     }

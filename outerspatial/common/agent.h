@@ -15,11 +15,15 @@ class Agent {
 protected:
     SafeQueue<Message> inbox = {};
     SafeQueue<std::pair<int, Message>> outbox = {}; //Message, recipient_id
-
+    worker::Connection& connection;
+    worker::View& view;
 public:
     int id;
     int ticks = 0;
-    Agent(int agent_id) : id(agent_id) {};
+    Agent(int agent_id, worker::Connection& connection, worker::View& view)
+      : connection(connection)
+      , view(view)
+      , id(agent_id) {};
     virtual ~Agent() = default;
     void ReceiveMessage(const Message incoming_message) {
         inbox.push(incoming_message);
@@ -34,9 +38,9 @@ public:
 // A Trader is an Agent capable of interacting with an AuctionHouse
 class Trader : public Agent {
 public:
-    Trader(int id, std::string  name)
-        : Agent(id)
-          , class_name(std::move(name)){};
+    Trader(int id, std::string name, worker::Connection& connection, worker::View& view)
+        : Agent(id, connection, view)
+        , class_name(std::move(name)){};
     ~Trader() override = default;
 
     virtual bool HasMoney(double quantity) {return false;};

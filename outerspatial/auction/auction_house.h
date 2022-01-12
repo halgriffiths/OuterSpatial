@@ -55,10 +55,11 @@ private:
 
 public:
     double spread_profit = 0;
-    AuctionHouse(int auction_house_id, Log::LogLevel verbosity)
-        : Agent(auction_house_id)
+    AuctionHouse(worker::Connection& connection, worker::View& view, int auction_house_id, Log::LogLevel verbosity)
+        : Agent(auction_house_id, connection, view)
         , unique_name(std::string("AH")+std::to_string(id))
         , logger(FileLogger(verbosity, unique_name)) {
+        ConstructInitialAuctionHouseEntity(auction_house_id);
         message_thread = std::thread([this] { MessageLoop(); });
     }
 
@@ -302,7 +303,7 @@ public:
     }
 
     void Tick(int duration) {
-        std::uint64_t expiry_ms = to_unix_timestamp_ms(std::chrono::system_clock::now()) + duration;
+        std::int64_t expiry_ms = to_unix_timestamp_ms(std::chrono::system_clock::now()) + duration;
         while (!destroyed) {
             auto t1 = std::chrono::high_resolution_clock::now();
             for (const auto& item : known_commodities) {
@@ -333,6 +334,100 @@ public:
         ticks++;
     }
 private:
+    // SPATIALOS CONCEPTS
+    bool ConstructInitialAuctionHouseEntity(worker::EntityId AH_id) {
+      if (!IsConnected()) {
+        return false;
+      }
+      worker::Entity AH_entity;
+      worker::EntityId id = 10;
+
+      AH_entity.Add<improbable::Metadata>({{"AuctionHouseEntity"}});
+      AH_entity.Add<improbable::Persistence>({});
+      AH_entity.Add<improbable::Position>({{0, 0, 0}});
+      AH_entity.Add<improbable::AuthorityDelegation>({{{3020, 3}}});
+      AH_entity.Add<market::RegisterCommandComponent>({});
+      AH_entity.Add<market::MakeBidOfferCommandComponent>({});
+      AH_entity.Add<market::MakeAskOfferCommandComponent>({});
+      AH_entity.Add<market::FoodMarket>({{{
+                                              "food",
+                                              0.5
+                                          },
+                                             {
+                                                 10.0,
+                                                 10.0,
+                                                 0,
+                                                 0
+                                             }}});
+      AH_entity.Add<market::WoodMarket>({{{
+                                              "wood",
+                                              1
+                                          },
+                                             {
+                                                 3.0,
+                                                 3.0,
+                                                 0,
+                                                 0
+                                             }}});
+      AH_entity.Add<market::FertilizerMarket>({{{
+                                                    "fertilizer",
+                                                    0.1
+                                                },
+                                                   {
+                                                       11.0,
+                                                       11.0,
+                                                       0,
+                                                       0
+                                                   }}});
+      AH_entity.Add<market::OreMarket>({{{
+                                             "ore",
+                                             1
+                                         },
+                                            {
+                                                1.0,
+                                                1.0,
+                                                0,
+                                                0
+                                            }}});
+      AH_entity.Add<market::MetalMarket>({{{
+                                               "metal",
+                                               1
+                                           },
+                                              {
+                                                  2.0,
+                                                  2.0,
+                                                  0,
+                                                  0
+                                              }}});
+      AH_entity.Add<market::ToolsMarket>({{{
+                                               "tools",
+                                               1
+                                           },
+                                              {
+                                                  5.0,
+                                                  5.0,
+                                                  0,
+                                                  0
+                                              }}});
+      auto result = connection.SendCreateEntityRequest(AH_entity, AH_id, {});
+      if (!result) {
+        connection.SendLogMessage(worker::LogLevel::kError, "AHWorker",
+                                  "Failed to create new auction house: "+result.GetErrorMessage());
+        return false;
+      }
+      connection.SendLogMessage(worker::LogLevel::kInfo, "AHWorker",
+                                "Created new auction house with ID #"+std::to_string(AH_id));
+      return true;
+    }
+    void MakeCallbacks() override {
+      using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
+      view.OnCommandRequest<RegisterTraderCommand>(
+          [&](const worker::CommandRequestOp<RegisterTraderCommand>& op) {
+            connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
+                                      "Received register request.\nCallerWorkerEntityId: " + std::to_string(op.CallerWorkerEntityId)
+                                      + "\nEntityId: "+std::to_string(op.EntityId)
+                                      + "\n(manually provided) Sender Id: " + std::to_string(op.Request.sender_id()));});
+    }
     // Transaction functions
     bool CheckBidStake(BidOffer& offer) {
         if (offer.quantity < 0 || offer.unit_price <= 0) {

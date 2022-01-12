@@ -81,8 +81,8 @@ private:
 public:
     std::atomic<bool> destroyed = false;
 
-    AITrader(int id, std::weak_ptr<AuctionHouse> auction_house_ptr, std::optional<std::shared_ptr<Role>> AI_logic, const std::string& class_name, double starting_money, double inv_capacity, const std::vector<InventoryItem> &starting_inv, int tick_time_ms, Log::LogLevel verbosity = Log::WARN)
-    : Trader(id, class_name)
+    AITrader(int id, worker::Connection& connection, worker::View& view, std::weak_ptr<AuctionHouse> auction_house_ptr, std::optional<std::shared_ptr<Role>> AI_logic, const std::string& class_name, double starting_money, double inv_capacity, const std::vector<InventoryItem> &starting_inv, int tick_time_ms, Log::LogLevel verbosity = Log::WARN)
+    : Trader(id, class_name,  connection, view)
     , auction_house(std::move(auction_house_ptr))
     , logic(std::move(AI_logic))
     , money(starting_money)

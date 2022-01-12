@@ -22,21 +22,21 @@
 #include "traders/human_trader.h"
 #include "traders/roles.h"
 
-std::shared_ptr<AITrader> CreateAndRegister(int id,
-                                               const std::shared_ptr<AuctionHouse>& auction_house,
-                                               std::shared_ptr<Role> AI_logic,
-                                               const std::string& name,
-                                               double starting_money,
-                                               double inv_capacity,
-                                               const std::vector<InventoryItem> inv,
-                                               int tick_time_ms,
-                                               Log::LogLevel log_level
-) {
-    auto trader = std::make_shared<AITrader>(id, auction_house, std::move(AI_logic), name, starting_money, inv_capacity, inv, tick_time_ms,  log_level);
-    trader->SendMessage(*Message(id).AddRegisterRequest(std::move(RegisterRequest(trader->id, trader))), auction_house->id);
-    trader->TickOnce();
-    return trader;
-}
+//std::shared_ptr<AITrader> CreateAndRegister(int id,
+//                                               const std::shared_ptr<AuctionHouse>& auction_house,
+//                                               std::shared_ptr<Role> AI_logic,
+//                                               const std::string& name,
+//                                               double starting_money,
+//                                               double inv_capacity,
+//                                               const std::vector<InventoryItem> inv,
+//                                               int tick_time_ms,
+//                                               Log::LogLevel log_level
+//) {
+//    auto trader = std::make_shared<AITrader>(id, auction_house, std::move(AI_logic), name, starting_money, inv_capacity, inv, tick_time_ms,  log_level);
+//    trader->SendMessage(*Message(id).AddRegisterRequest(std::move(RegisterRequest(trader->id, trader))), auction_house->id);
+//    trader->TickOnce();
+//    return trader;
+//}
 
 int RandomChoice(int num_weights, std::vector<double>& weights, std::mt19937& gen) {
     double sum_of_weight = 0;

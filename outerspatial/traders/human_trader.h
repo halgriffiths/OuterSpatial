@@ -37,8 +37,8 @@ private:
 
     double money;
 public:
-    PlayerTrader(std::uint64_t start_time, int id, std::weak_ptr<AuctionHouse> auction_house_ptr, double starting_money, double inv_capacity, const std::vector<InventoryItem> &starting_inv, std::vector<std::string> tracked_goods, std::vector<std::string> tracked_roles, Log::LogLevel verbosity)
-            : Trader(id, "player")
+    PlayerTrader(std::uint64_t start_time, int id, worker::Connection& connection, worker::View& view, std::weak_ptr<AuctionHouse> auction_house_ptr, double starting_money, double inv_capacity, const std::vector<InventoryItem> &starting_inv, std::vector<std::string> tracked_goods, std::vector<std::string> tracked_roles, Log::LogLevel verbosity)
+            : Trader(id, "player", connection, view)
             , unique_name(class_name + std::to_string(id))
             , tracked_goods(tracked_goods)
             , tracked_roles(tracked_roles)
