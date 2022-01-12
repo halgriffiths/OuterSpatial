@@ -53,6 +53,24 @@
           "components": ["*"]
         }
       }]
+    },
+    {
+      "worker_type": "MonitorWorker",
+      "permissions": [{
+        "entity_creation": {
+          "allow": true
+        },
+        "entity_deletion": {
+          "allow": true
+        },
+        "entity_query": {
+          "allow": true,
+          "components": ["*"]
+        },
+        "system_entity_command": {
+          "allow": true
+        }
+      }]
     }
   ]
 }

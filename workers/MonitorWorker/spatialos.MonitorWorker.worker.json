@@ -1,0 +1,70 @@
+{
+  "build": {
+    "tasks_filename": "build.json"
+  },
+  "external": {
+    "local": {
+      "run_type": "EXECUTABLE_ZIP",
+      "linux": {
+        "artifact_name": "MonitorWorker@Linux.zip",
+        "command": "./MonitorWorker",
+        "arguments": [
+          "receptionist",
+          "localhost",
+          "7777",
+          "MonitorWorkerLocalLinux"
+        ]
+      },
+      "windows": {
+        "artifact_name": "MonitorWorker@Windows.zip",
+        "command": "./MonitorWorker.exe",
+        "arguments": [
+          "receptionist",
+          "localhost",
+          "7777",
+          "MonitorWorkerLocalWindows"
+        ]
+      },
+      "macos": {
+        "artifact_name": "MonitorWorker@Mac.zip",
+        "command": "./MonitorWorker",
+        "arguments": [
+          "receptionist",
+          "localhost",
+          "7777",
+          "MonitorWorkerLocalMac"
+        ]
+      }
+    },
+    "cloud": {
+      "run_type": "EXECUTABLE_ZIP",
+      "linux": {
+        "artifact_name": "MonitorWorker@Linux.zip",
+        "command": "./MonitorWorker",
+        "arguments": [
+          "locator",
+          "locator.improbable.io",
+          "${IMPROBABLE_PROJECT_NAME}"
+        ]
+      },
+      "windows": {
+        "artifact_name": "MonitorWorker@Windows.zip",
+        "command": "./MonitorWorker.exe",
+        "arguments": [
+          "locator",
+          "locator.improbable.io",
+          "${IMPROBABLE_PROJECT_NAME}"
+        ]
+      },
+      "macos": {
+        "artifact_name": "MonitorWorker@Mac.zip",
+        "command": "./MonitorWorker",
+        "arguments": [
+          "locator",
+          "locator.improbable.io",
+          "${IMPROBABLE_PROJECT_NAME}"
+        ]
+      }
+    }
+  }
+}
