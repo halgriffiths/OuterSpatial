@@ -48,9 +48,8 @@ using ComponentRegistry =
 const int ErrorExitStatus = 1;
 const std::string kLoggerName = "startup.cc";
 const std::uint32_t kGetOpListTimeoutInMilliseconds = 100;
+const std::uint32_t kCreateEntityTimeoutInMilliseconds = 500;
 
-const worker::EntityId listenerEntity = 1;
-const worker::EntityId serverPartitionId = 2;
 const worker::EntityId auctionhousePartitionId = 3;
 
 worker::Connection
@@ -165,47 +164,33 @@ int main(int argc, char** argv) {
   view.OnCommandResponse<AssignPartitionCommand>(
       [&](const worker::CommandResponseOp<AssignPartitionCommand>& op) {
         if (op.StatusCode == worker::StatusCode::kSuccess) {
-          connection.SendLogMessage(worker::LogLevel::kInfo, "Server",
+          connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
                                     "Successfully assigned partition.");
         } else {
-          connection.SendLogMessage(worker::LogLevel::kError, "Server",
+          connection.SendLogMessage(worker::LogLevel::kError, "AuctionHouse",
                                     "Failed to assign partition: error code : " +
                                         std::to_string(static_cast<std::uint8_t>(op.StatusCode)) +
                                         " message: " + op.Message);
         }
       });
 
-  connection.SendCommandRequest<AssignPartitionCommand>(
-      connection.GetWorkerEntityId(), {serverPartitionId}, /* default timeout */ {});
-
   view.OnAddComponent<improbable::restricted::Worker>(
       [&](worker::AddComponentOp<improbable::restricted::Worker> op) {
-        connection.SendLogMessage(worker::LogLevel::kInfo, "Server",
+        connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
                                   "Worker with ID " + op.Data.worker_id() + " connected.");
       });
 
-  {
-    connection.SendCommandRequest<AssignPartitionCommand>(
-        connection.GetWorkerEntityId(), {auctionhousePartitionId}, /* default timeout */ {});
-  }
+  // MY STUFF STARTS HERE
+
+  connection.SendCommandRequest<AssignPartitionCommand>(
+      connection.GetWorkerEntityId(), {auctionhousePartitionId}, /* default timeout */ {});
+  auto AH_ptr = std::make_shared<AuctionHouse>(connection, view, 10, Log::DEBUG);
+
+
   double elapsed_time = 0.0;
   auto last_tick_time = std::chrono::steady_clock::now();
-  bool onetime = true;
   while (is_connected) {
-    if (onetime) {
-      //Test OuterSpatial library has been imported correctly
-      std::string good = "ore";
-      connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse", "Producer of ore is: " + GetProducer(good) );
-      onetime = false;
-    }
     view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
-
-    if (view.GetAuthority<sample::LoginListenerSet>(listenerEntity) ==
-        worker::Authority::kAuthoritative) {
-      improbable::Position::Update pos_update;
-      pos_update.set_coords({std::sin(elapsed_time), 0.0, std::cos(elapsed_time)});
-      connection.SendComponentUpdate<improbable::Position>(listenerEntity, pos_update);
-    }
 
     auto now = std::chrono::steady_clock::now();
     elapsed_time += std::chrono::duration<double>(now - last_tick_time)
