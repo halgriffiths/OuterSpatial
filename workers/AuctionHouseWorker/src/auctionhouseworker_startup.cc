@@ -177,7 +177,7 @@ int main(int argc, char** argv) {
   view.OnAddComponent<improbable::restricted::Worker>(
       [&](worker::AddComponentOp<improbable::restricted::Worker> op) {
         connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
-                                  "Worker with ID " + op.Data.worker_id() + " connected.");
+                                  "Worker with ID " + op.Data.worker_id() + " created component.");
       });
 
   // MY STUFF STARTS HERE

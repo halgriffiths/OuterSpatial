@@ -427,6 +427,14 @@ private:
                                       "Received register request.\nCallerWorkerEntityId: " + std::to_string(op.CallerWorkerEntityId)
                                       + "\nEntityId: "+std::to_string(op.EntityId)
                                       + "\n(manually provided) Sender Id: " + std::to_string(op.Request.sender_id()));});
+      view.OnCreateEntityResponse([&](const worker::CreateEntityResponseOp& op) {
+        if (op.StatusCode == worker::StatusCode::kSuccess) {
+          connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
+                                    "Successfully created entity");
+        } else {
+          connection.SendLogMessage(worker::LogLevel::kWarn, "AuctionHouse",
+                                    "Failed to create entity");
+        };});
     }
     // Transaction functions
     bool CheckBidStake(BidOffer& offer) {
