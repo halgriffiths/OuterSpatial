@@ -31,7 +31,12 @@ public:
     void SendMessage(Message& outgoing_message, int recipient) {
         outbox.push({recipient,std::move(outgoing_message)});
     }
-
+  protected:
+    bool IsConnected() {
+      return (connection.GetConnectionStatusCode() == worker::ConnectionStatusCode::kSuccess);
+    }
+    //Set up callback functions on 'view'
+    virtual void MakeCallbacks() {};
 
 };
 
