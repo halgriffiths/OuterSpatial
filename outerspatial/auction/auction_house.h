@@ -224,7 +224,28 @@ public:
         logger.Log(Log::INFO, "Deregistered trader "+std::to_string(message.sender_id));
         known_traders.erase(message.sender_id);
     }
+  void UpdatePriceInfoComponent(const std::string& commodity) {
+    int recent = 50*TICK_TIME_MS; // arbritrary choice
 
+    // Get data
+    double curr_price = history.prices.t_average(commodity, TICK_TIME_MS);
+    double recent_price = history.prices.t_average(commodity, recent);
+
+    int curr_net_supply = history.net_supply.t_average(commodity, TICK_TIME_MS);
+    int recent_net_supply = history.net_supply.t_average(commodity, recent);
+
+    int recent_trade_volume = history.trades.t_total(commodity, recent);
+
+    // Send update
+    market::PriceInfo info{curr_price, recent_price, curr_net_supply, recent_net_supply, recent_trade_volume};
+    info.set_curr_price(curr_price);
+
+    market::FoodMarket::Update update_market;
+    market::MarketListing listing;
+    listing.set_price_info(info);
+    update_market.set_listing(listing);
+    connection.SendComponentUpdate<market::FoodMarket>(id, update_market);
+  }
     double MostRecentBuyPrice(const std::string& commodity) const {
         return history.buy_prices.most_recent.at(commodity);
     }
@@ -340,7 +361,6 @@ private:
         return false;
       }
       worker::Entity AH_entity;
-      worker::EntityId id = 10;
 
       AH_entity.Add<improbable::Metadata>({{"AuctionHouseEntity"}});
       AH_entity.Add<improbable::Persistence>({});
@@ -357,6 +377,7 @@ private:
                                                  10.0,
                                                  10.0,
                                                  0,
+                                                 0,
                                                  0
                                              }}});
       AH_entity.Add<market::WoodMarket>({{{
@@ -367,7 +388,8 @@ private:
                                                  3.0,
                                                  3.0,
                                                  0,
-                                                 0
+                                                 0,
+                                                0
                                              }}});
       AH_entity.Add<market::FertilizerMarket>({{{
                                                     "fertilizer",
@@ -376,6 +398,7 @@ private:
                                                    {
                                                        11.0,
                                                        11.0,
+                                                       0,
                                                        0,
                                                        0
                                                    }}});
@@ -387,6 +410,7 @@ private:
                                                 1.0,
                                                 1.0,
                                                 0,
+                                                0,
                                                 0
                                             }}});
       AH_entity.Add<market::MetalMarket>({{{
@@ -397,6 +421,7 @@ private:
                                                   2.0,
                                                   2.0,
                                                   0,
+                                                  0,
                                                   0
                                               }}});
       AH_entity.Add<market::ToolsMarket>({{{
@@ -406,6 +431,7 @@ private:
                                               {
                                                   5.0,
                                                   5.0,
+                                                  0,
                                                   0,
                                                   0
                                               }}});

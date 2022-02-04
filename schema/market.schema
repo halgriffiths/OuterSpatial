@@ -14,6 +14,7 @@ type PriceInfo {
 
   int32 curr_net_supply = 3;
   int32 recent_net_supply = 4;
+  int32 recent_trade_volume = 5;
 }
 
 type MarketListing {
@@ -63,7 +64,6 @@ component ToolsMarket {
   id = 3015;
   MarketListing listing = 1;
 }
-
 
 component_set ServerMarketComponentSet {
   id = 3020;

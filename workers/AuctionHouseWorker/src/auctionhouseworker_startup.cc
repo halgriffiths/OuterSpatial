@@ -185,17 +185,22 @@ int main(int argc, char** argv) {
   connection.SendCommandRequest<AssignPartitionCommand>(
       connection.GetWorkerEntityId(), {auctionhousePartitionId}, /* default timeout */ {});
   auto AH_ptr = std::make_shared<AuctionHouse>(connection, view, 10, Log::DEBUG);
-
+  AH_ptr->history.initialise("food");
 
   double elapsed_time = 0.0;
   auto last_tick_time = std::chrono::steady_clock::now();
   while (is_connected) {
     view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
 
-    auto now = std::chrono::steady_clock::now();
-    elapsed_time += std::chrono::duration<double>(now - last_tick_time)
+    // get random price
+    AH_ptr->history.prices.add("food", (double)(rand() % 100 + 1));
+    AH_ptr->history.trades.add("food", 1);
+
+    AH_ptr->UpdatePriceInfoComponent("food");
+    auto t_now = std::chrono::steady_clock::now();
+    elapsed_time += std::chrono::duration<double>(t_now - last_tick_time)
                         .count();  // Amount of time since last tick, in seconds
-    last_tick_time = now;
+    last_tick_time = t_now;
   }
 
   return ErrorExitStatus;

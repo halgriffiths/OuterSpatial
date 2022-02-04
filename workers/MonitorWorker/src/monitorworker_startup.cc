@@ -27,7 +27,19 @@ using ComponentRegistry =
       market::MetalMarket,
       market::OreMarket,
       market::ToolsMarket,
-      improbable::AuthorityDelegation>;
+      improbable::AuthorityDelegation,
+      sample::LoginListenerSet,
+      sample::PositionSet,
+      trader::Metadata,
+      trader::Buildings,
+      market::RegisterCommandComponent,
+      market::MakeBidOfferCommandComponent,
+      market::MakeAskOfferCommandComponent,
+      improbable::Position,
+      improbable::Metadata,
+      improbable::Interest,
+      improbable::restricted::Worker,
+      improbable::restricted::Partition>;
 
 // Constants and parameters
 const int ErrorExitStatus = 1;
@@ -85,7 +97,7 @@ void CreateMonitorEntities(worker::Connection& connection, worker::EntityId base
 
   // Task: Create an entity which has interest over component id 3010
   improbable::ComponentSetInterest_QueryConstraint my_constraint;
-//  my_constraint.set_component_constraint({3010});
+  my_constraint.set_component_constraint({3010});
   improbable::ComponentSetInterest_Query my_query;
   my_query.set_constraint(my_constraint);
 
@@ -95,8 +107,7 @@ void CreateMonitorEntities(worker::Connection& connection, worker::EntityId base
   monitor_entity.Add<improbable::Metadata>({{"MonitorEntity"}});
   monitor_entity.Add<improbable::Position>({{3, 0, 0}});
   monitor_entity.Add<improbable::Interest>({{{3010, my_component_set_interest}}});
-  monitor_entity.Add<improbable::AuthorityDelegation>({{{base_id + 1, 58}}});
-
+  monitor_entity.Add<improbable::AuthorityDelegation>({{{58, base_id + 1}}});
   connection.SendCreateEntityRequest(monitor_entity, base_id, {500});
 
   worker::Entity monitor_partition_entity;
@@ -233,13 +244,16 @@ int main(int argc, char** argv) {
     if (ids_reserved) {
       std::cout << "Reserved!" << std::endl;
       ids_reserved = false;
-//      CreateMonitorEntities(connection, monitor_entity_id);
-      worker::Entity monitor_partition_entity;
-      monitor_partition_entity.Add<improbable::Metadata>({{"MonitorPartitionEntity"}});
-      monitor_partition_entity.Add<improbable::Position>({{4, 0, 0}});
-
-      connection.SendCreateEntityRequest(monitor_partition_entity, monitor_partition_entity_id, {500});
+      CreateMonitorEntities(connection, monitor_entity_id);
       std::cout << "Create requests sent with id: #" << monitor_partition_entity_id << std::endl;
+      dispatcher.OnComponentUpdate<market::FoodMarket>(
+          [&](const worker::ComponentUpdateOp<market::FoodMarket >& op) {
+            worker::EntityId entity_id = op.EntityId;
+            market::FoodMarket::Update update = op.Update;
+
+            std::cout << "# Update from id " << entity_id << std::endl;
+            std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
+          });
     }
     if (entities_created) {
       std::cout << "Created!" << std::endl;

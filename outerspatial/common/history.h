@@ -78,7 +78,19 @@ public:
         }
         return total/range;
     }
-
+  double t_total(const std::string& name, std::int64_t duration) const {
+      if (log.count(name) != 1) {
+        return 0;// no entry found
+      }
+      auto start_time = log.at(name).back().second - duration;
+      double total = 0;
+      auto it = log.at(name).rbegin();
+      while (it != log.at(name).rend() && it->second >= start_time) {
+        total += it->first;
+        it++;
+      }
+      return total;
+  }
     double percentage_change(const std::string& name, int window) const {
         double prev_value;
         if (window <= log.at(name).size()) {
