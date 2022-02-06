@@ -185,18 +185,30 @@ int main(int argc, char** argv) {
   connection.SendCommandRequest<AssignPartitionCommand>(
       connection.GetWorkerEntityId(), {auctionhousePartitionId}, /* default timeout */ {});
   auto AH_ptr = std::make_shared<AuctionHouse>(connection, view, 10, Log::DEBUG);
-  AH_ptr->history.initialise("food");
-
   double elapsed_time = 0.0;
   auto last_tick_time = std::chrono::steady_clock::now();
+
+  bool odd = false;
+  AH_ptr->history.initialise("food");
+  AH_ptr->history.initialise("wood");
   while (is_connected) {
     view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
 
     // get random price
     AH_ptr->history.prices.add("food", (double)(rand() % 100 + 1));
     AH_ptr->history.trades.add("food", 1);
+    AH_ptr->UpdatePriceInfoComponent<market::FoodMarket>("food");
 
-    AH_ptr->UpdatePriceInfoComponent("food");
+    if (odd) {
+      //tick half as often (experiment)
+      AH_ptr->history.prices.add("wood", (double)(rand() % 100 + 1));
+      AH_ptr->history.trades.add("wood", 1);
+      AH_ptr->UpdatePriceInfoComponent<market::WoodMarket>("wood");
+      odd = false;
+    } else {
+      odd = true;
+    }
+
     auto t_now = std::chrono::steady_clock::now();
     elapsed_time += std::chrono::duration<double>(t_now - last_tick_time)
                         .count();  // Amount of time since last tick, in seconds

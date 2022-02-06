@@ -224,28 +224,34 @@ public:
         logger.Log(Log::INFO, "Deregistered trader "+std::to_string(message.sender_id));
         known_traders.erase(message.sender_id);
     }
+
+  template <class Tmarket>
   void UpdatePriceInfoComponent(const std::string& commodity) {
-    int recent = 50*TICK_TIME_MS; // arbritrary choice
+      static_assert(std::is_base_of<::worker::detail::ComponentMetaclass, Tmarket>::value, "T must inherit from ComponentMetaclass");
+      int recent = 50*TICK_TIME_MS; // arbritrary choice
 
-    // Get data
-    double curr_price = history.prices.t_average(commodity, TICK_TIME_MS);
-    double recent_price = history.prices.t_average(commodity, recent);
+      // Get data
+      double curr_price = history.prices.t_average(commodity, TICK_TIME_MS);
+      double recent_price = history.prices.t_average(commodity, recent);
 
-    int curr_net_supply = history.net_supply.t_average(commodity, TICK_TIME_MS);
-    int recent_net_supply = history.net_supply.t_average(commodity, recent);
+      int curr_net_supply = history.net_supply.t_average(commodity, TICK_TIME_MS);
+      int recent_net_supply = history.net_supply.t_average(commodity, recent);
 
-    int recent_trade_volume = history.trades.t_total(commodity, recent);
+      int recent_trade_volume = history.trades.t_total(commodity, recent);
 
-    // Send update
-    market::PriceInfo info{curr_price, recent_price, curr_net_supply, recent_net_supply, recent_trade_volume};
-    info.set_curr_price(curr_price);
+      // Send update
+      market::PriceInfo info{curr_price, recent_price, curr_net_supply, recent_net_supply, recent_trade_volume};
+      info.set_curr_price(curr_price);
 
-    market::FoodMarket::Update update_market;
-    market::MarketListing listing;
-    listing.set_price_info(info);
-    update_market.set_listing(listing);
-    connection.SendComponentUpdate<market::FoodMarket>(id, update_market);
-  }
+
+      market::MarketListing listing;
+      listing.set_price_info(info);
+
+      typename Tmarket::Update update_market;
+      update_market.set_listing(listing);
+      connection.SendComponentUpdate<Tmarket>(id, update_market);
+    }
+
     double MostRecentBuyPrice(const std::string& commodity) const {
         return history.buy_prices.most_recent.at(commodity);
     }
