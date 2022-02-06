@@ -75,21 +75,15 @@ private:
        MakeCallbacks();
     }
 
-    void CollectAuctionHouseMetrics(const std::shared_ptr<AuctionHouse>& auction_house) {
-        auto local_curr_time = to_unix_timestamp_ms(std::chrono::system_clock::now());
-        double time_passed_s = (double)(local_curr_time - offset - start_time) / 1000;
-        std::uint64_t lookback_ms = local_curr_time - prev_time;
-        for (auto& good : tracked_goods) {
-            double price = auction_house->t_AverageHistoricalPrice(good, lookback_ms);
-            double asks = auction_house->t_AverageHistoricalAsks(good, lookback_ms);
-            double bids = auction_house->t_AverageHistoricalBids(good, lookback_ms);
-
-            local_history.prices.add(good, price);
-            local_history.asks.add(good, asks);
-            local_history.bids.add(good, bids);
-            local_history.net_supply.add(good, asks-bids);
+    void PrintSummary() {
+      for (auto& good : tracked_goods) {
+        std::cout << "# " << good << std::endl;
+        if (local_history.exists(good)) {
+          std::cout << "Price (avg): " << local_history.prices.most_recent[good] << " (" << local_history.prices.t_average(good, -1) << ")" << std::endl;;
+        } else {
+          std::cout << "Good " << good << " not found in local history\n";
         }
-        curr_tick++;
+      }
     }
 
   void MakeCallbacks() {

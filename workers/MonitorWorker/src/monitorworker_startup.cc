@@ -228,10 +228,12 @@ int main(int argc, char** argv) {
   } while(local_metrics->progress != metrics::ASSIGNED_PARTITION);
 
   std::cout << "Entering main loop" << std::endl;
-
+  local_metrics->PrintSummary();
   while (is_connected) {
     if (quit.load()) return ErrorExitStatus;
     view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
+    local_metrics->PrintSummary();
+    std::this_thread::sleep_for(std::chrono::milliseconds{1000});
   }
 
   return ErrorExitStatus;
