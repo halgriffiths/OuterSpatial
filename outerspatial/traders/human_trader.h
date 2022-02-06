@@ -32,7 +32,7 @@ private:
     int auction_house_id = -1;
 
     Inventory _inventory;
-    LocalMetrics local_metrics;
+//    LocalMetrics local_metrics;
     FileLogger logger;
 
     double money;
@@ -43,7 +43,7 @@ public:
             , tracked_goods(tracked_goods)
             , tracked_roles(tracked_roles)
             , auction_house(std::move(auction_house_ptr))
-            , local_metrics(start_time, tracked_goods,tracked_roles)
+//            , local_metrics(start_time, tracked_goods,tracked_roles)
             , logger(FileLogger(verbosity, unique_name))
             , money(starting_money) {
         //construct inv
@@ -117,21 +117,21 @@ void PlayerTrader::UILoop() {
             std::cout << "\t\t\t" << good;
         }
         std::cout << std::endl;
-        for (auto& good : tracked_goods) {
-            double curr_price = local_metrics.local_history.prices.most_recent[good];
-
-            std::cout << "\t\t$" << curr_price;
-            double pc_change = local_metrics.local_history.prices.t_percentage_change(good, 1000);
-            if (pc_change < 0) {
-                //▼
-                std::cout << "\033[1;31m(▼" << pc_change << "%)\033[0m";
-            } else if (pc_change > 0) {
-                //▲
-                std::cout << "\033[1;32m(▲" << pc_change << "%)\033[0m";
-            } else {
-                std::cout << "(" << pc_change << "%)";
-            }
-        }
+//        for (auto& good : tracked_goods) {
+//            double curr_price = local_metrics.local_history.prices.most_recent[good];
+//
+//            std::cout << "\t\t$" << curr_price;
+//            double pc_change = local_metrics.local_history.prices.t_percentage_change(good, 1000);
+//            if (pc_change < 0) {
+//                //▼
+//                std::cout << "\033[1;31m(▼" << pc_change << "%)\033[0m";
+//            } else if (pc_change > 0) {
+//                //▲
+//                std::cout << "\033[1;32m(▲" << pc_change << "%)\033[0m";
+//            } else {
+//                std::cout << "(" << pc_change << "%)";
+//            }
+//        }
         std::cout << std::endl;
         std::this_thread::sleep_for(std::chrono::milliseconds{1000});
     }
@@ -144,7 +144,7 @@ void PlayerTrader::MonitorLoop() {
         //Polling logic goes here...
         auto res = auction_house.lock();
         if (res) {
-            local_metrics.CollectAuctionHouseMetrics(res);
+//            local_metrics.CollectAuctionHouseMetrics(res);
         }
     }
 }

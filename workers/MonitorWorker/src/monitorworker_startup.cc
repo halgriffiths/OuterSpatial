@@ -1,5 +1,7 @@
 #include <improbable/standard_library.h>
 #include <improbable/worker.h>
+#include <improbable/view.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
@@ -15,6 +17,11 @@
 #include <market.h>
 #include <trader.h>
 
+#include <optional>
+#include <thread>
+#include <string>
+
+#include "../../outerspatial/outerspatial_engine.h"
 // Use this to make a worker::ComponentRegistry. This worker doesn't use any components yet
 // For example use worker::Components<improbable::Position, improbable::Metadata> to track these
 // common components
@@ -88,34 +95,6 @@ std::string get_random_characters(size_t count) {
   std::string str(count, 0);
   std::generate_n(str.begin(), count, randchar);
   return str;
-}
-
-void CreateMonitorEntities(worker::Connection& connection, worker::EntityId base_id) {
-  worker::Entity monitor_entity;
-
-  //FoodMarket id = 3010
-
-  // Task: Create an entity which has interest over component id 3010
-  improbable::ComponentSetInterest_QueryConstraint my_constraint;
-  my_constraint.set_component_constraint({3010});
-  improbable::ComponentSetInterest_Query my_query;
-  my_query.set_constraint(my_constraint);
-
-  improbable::ComponentSetInterest my_component_set_interest;
-  my_component_set_interest.set_queries({my_query});
-
-  monitor_entity.Add<improbable::Metadata>({{"MonitorEntity"}});
-  monitor_entity.Add<improbable::Position>({{3, 0, 0}});
-  monitor_entity.Add<improbable::Interest>({{{3010, my_component_set_interest}}});
-  monitor_entity.Add<improbable::AuthorityDelegation>({{{58, base_id + 1}}});
-  connection.SendCreateEntityRequest(monitor_entity, base_id, {500});
-
-  worker::Entity monitor_partition_entity;
-  monitor_partition_entity.Add<improbable::Metadata>({{"MonitorPartitionEntity"}});
-  monitor_partition_entity.Add<improbable::Position>({{4, 0, 0}});
-
-  connection.SendCreateEntityRequest(monitor_partition_entity, base_id+1, {500});
-  std::cout << "Create requests sent." << std::endl;
 }
 
 std::atomic<bool> quit(false);
@@ -198,10 +177,10 @@ int main(int argc, char** argv) {
   connection.SendLogMessage(worker::LogLevel::kInfo, kLoggerName, "Connected successfully");
 
   // Register callbacks and run the worker main loop.
-  worker::Dispatcher dispatcher{ComponentRegistry{}};
+  worker::View view{ComponentRegistry{}};
 
   bool is_connected = true;
-  dispatcher.OnDisconnect([&](const worker::DisconnectOp& op) {
+  view.OnDisconnect([&](const worker::DisconnectOp& op) {
     std::cerr << "[disconnect] " << op.Reason << std::endl;
     is_connected = false;
   });
@@ -212,53 +191,47 @@ int main(int argc, char** argv) {
   sigfillset(&sa.sa_mask);
   sigaction(SIGINT,&sa,NULL);
 
-  worker::EntityId monitor_entity_id, monitor_partition_entity_id;
-  bool entities_created = false;
-  bool ids_reserved = false;
-  dispatcher.OnReserveEntityIdsResponse([&](const worker::ReserveEntityIdsResponseOp& op) {
-    if (op.StatusCode == worker::StatusCode::kSuccess) {
-      monitor_entity_id = *op.FirstEntityId;
-      monitor_partition_entity_id = *op.FirstEntityId + 1;
-      ids_reserved = true;
-    } else {
-      std::cout << "Received failure code: " << op.Message << std::endl;
-    }
-  });
-  dispatcher.OnCreateEntityResponse([&](const worker::CreateEntityResponseOp& op) {
-    if (op.StatusCode == worker::StatusCode::kSuccess) {
-      connection.SendLogMessage(worker::LogLevel::kInfo, "Monitor",
-                                "Successfully created entity");
-    } else {
-      connection.SendLogMessage(worker::LogLevel::kWarn, "Monitor",
-                                "Failed to create entity");
-    };});
   // Reserve 2 ids
   connection.SendReserveEntityIdsRequest(2, {1000});
   // Create an entity with Interest and AuthorityDelegation components
   // Create a PartitionEntity
   // AssignPartitionCommand to gain entity 1
+  auto metrics_start_time = to_unix_timestamp_ms(std::chrono::high_resolution_clock::now());
+  const std::vector<std::string>& tracked_goods = {"food", "wood"};
+  std::vector<std::string> tracked_roles = {"farmer", "woodcutter"};
+  std::shared_ptr<LocalMetrics> local_metrics = std::make_shared<LocalMetrics>(connection, view, metrics_start_time, tracked_goods, tracked_roles);
+
+  do {
+    if (quit.load()) return ErrorExitStatus;
+    view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
+    if (local_metrics->progress == metrics::RESERVED_ID) {
+      local_metrics->CreateMonitorEntity();
+      std::cout << "Create requests sent with id: #" << local_metrics->monitor_entity_id << std::endl;
+    }
+  } while (local_metrics->progress != metrics::RESERVED_ID);
+
+  std::cout << "Reserved IDs" << std::endl;
+
+  do {
+    if (quit.load()) return ErrorExitStatus;
+    view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
+    if (local_metrics->progress == metrics::CREATED_MONITOR) {
+      using AssignPartitionCommand = improbable::restricted::Worker::Commands::AssignPartition;
+      connection.SendCommandRequest<AssignPartitionCommand>(
+          connection.GetWorkerEntityId(), {local_metrics->monitor_entity_id}, /* default timeout */ {});
+    }
+  } while(local_metrics->progress != metrics::CREATED_MONITOR);
+
+  do {
+    if (quit.load()) return ErrorExitStatus;
+    view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
+  } while(local_metrics->progress != metrics::ASSIGNED_PARTITION);
+
+  std::cout << "Entering main loop" << std::endl;
+
   while (is_connected) {
     if (quit.load()) return ErrorExitStatus;
-
-    dispatcher.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
-    if (ids_reserved) {
-      std::cout << "Reserved!" << std::endl;
-      ids_reserved = false;
-      CreateMonitorEntities(connection, monitor_entity_id);
-      std::cout << "Create requests sent with id: #" << monitor_partition_entity_id << std::endl;
-      dispatcher.OnComponentUpdate<market::FoodMarket>(
-          [&](const worker::ComponentUpdateOp<market::FoodMarket >& op) {
-            worker::EntityId entity_id = op.EntityId;
-            market::FoodMarket::Update update = op.Update;
-
-            std::cout << "# Update from id " << entity_id << std::endl;
-            std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
-          });
-    }
-    if (entities_created) {
-      std::cout << "Created!" << std::endl;
-      entities_created = false;
-    }
+    view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
   }
 
   return ErrorExitStatus;

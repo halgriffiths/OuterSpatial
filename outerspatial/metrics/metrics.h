@@ -32,12 +32,21 @@ namespace {
 }
 
 // Intended to be stored in-memory, this lightweight metric tracker is for human player UI purposes
+namespace metrics{
+    enum RegisterProgress {
+      NONE,
+      RESERVED_ID,
+      CREATED_MONITOR,
+      ASSIGNED_PARTITION
+    };
+}
+
 class LocalMetrics {
 public:
     std::vector<std::string> tracked_goods;
     std::vector<std::string> tracked_roles;
     History local_history = {};
-
+    metrics::RegisterProgress progress = metrics::NONE;
 private:
     friend PlayerTrader;
 
@@ -45,15 +54,25 @@ private:
     std::uint64_t offset;
     std::uint64_t start_time;
     std::uint64_t prev_time;
-public:
-    LocalMetrics(std::uint64_t start_time, const std::vector<std::string>& tracked_goods, std::vector<std::string> tracked_roles)
-    : start_time(start_time)
-    , tracked_goods(tracked_goods)
-    , tracked_roles(tracked_roles) {
+    worker::Connection& connection;
+    worker::View& view;
+
+
+  public:
+    worker::EntityId monitor_entity_id;
+
+    LocalMetrics(worker::Connection& connection, worker::View& view, std::uint64_t start_time, const std::vector<std::string>& tracked_goods, std::vector<std::string> tracked_roles)
+    : tracked_goods(tracked_goods)
+    , tracked_roles(tracked_roles)
+    , start_time(start_time)
+    , connection(connection)
+    , view(view)
+     {
         offset = to_unix_timestamp_ms(std::chrono::system_clock::now()) - start_time;
         for (auto& item : tracked_goods) {
             local_history.initialise(item);
         }
+       MakeCallbacks();
     }
 
     void CollectAuctionHouseMetrics(const std::shared_ptr<AuctionHouse>& auction_house) {
@@ -72,6 +91,111 @@ public:
         }
         curr_tick++;
     }
+
+  void MakeCallbacks() {
+    view.OnReserveEntityIdsResponse([&](const worker::ReserveEntityIdsResponseOp& op) {
+      if (op.StatusCode == worker::StatusCode::kSuccess) {
+        monitor_entity_id = *op.FirstEntityId;
+        progress = metrics::RESERVED_ID;
+      } else {
+        std::cout << "Received failure code: " << op.Message << std::endl;
+      }
+    });
+    view.OnCreateEntityResponse([&](const worker::CreateEntityResponseOp& op) {
+      if (op.StatusCode == worker::StatusCode::kSuccess) {
+        connection.SendLogMessage(worker::LogLevel::kInfo, "Monitor",
+                                  "Successfully created entity");
+        progress = metrics::CREATED_MONITOR;
+      } else {
+        connection.SendLogMessage(worker::LogLevel::kWarn, "Monitor",
+                                  "Failed to create entity");
+      };});
+    using AssignPartitionCommand = improbable::restricted::Worker::Commands::AssignPartition;
+    view.OnCommandResponse<AssignPartitionCommand>(
+        [&](const worker::CommandResponseOp<AssignPartitionCommand>& op) {
+          if (op.StatusCode == worker::StatusCode::kSuccess) {
+            connection.SendLogMessage(worker::LogLevel::kInfo, "Monitor",
+                                      "Successfully assigned partition.");
+            progress = metrics::ASSIGNED_PARTITION;
+          } else {
+            connection.SendLogMessage(worker::LogLevel::kError, "Monitor",
+                                      "Failed to assign partition: error code : " +
+                                      std::to_string(static_cast<std::uint8_t>(op.StatusCode)) +
+                                      " message: " + op.Message);
+          }
+        });
+    view.OnComponentUpdate<market::FoodMarket>(
+        [&](const worker::ComponentUpdateOp<market::FoodMarket >& op) {
+          worker::EntityId entity_id = op.EntityId;
+          market::FoodMarket::Update update = op.Update;
+          std::cout << "# Food update from id " << entity_id << std::endl;
+          std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
+        });
+    view.OnComponentUpdate<market::WoodMarket>(
+        [&](const worker::ComponentUpdateOp<market::WoodMarket >& op) {
+          worker::EntityId entity_id = op.EntityId;
+          market::WoodMarket::Update update = op.Update;
+          std::cout << "# Wood update from id " << entity_id << std::endl;
+          std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
+        });
+    view.OnComponentUpdate<market::FertilizerMarket>(
+        [&](const worker::ComponentUpdateOp<market::FertilizerMarket >& op) {
+          worker::EntityId entity_id = op.EntityId;
+          market::FertilizerMarket::Update update = op.Update;
+          std::cout << "# Fertilizer update from id " << entity_id << std::endl;
+          std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
+        });
+    view.OnComponentUpdate<market::OreMarket>(
+        [&](const worker::ComponentUpdateOp<market::OreMarket >& op) {
+          worker::EntityId entity_id = op.EntityId;
+          market::OreMarket::Update update = op.Update;
+          std::cout << "# Ore update from id " << entity_id << std::endl;
+          std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
+        });
+    view.OnComponentUpdate<market::MetalMarket>(
+        [&](const worker::ComponentUpdateOp<market::MetalMarket >& op) {
+          worker::EntityId entity_id = op.EntityId;
+          market::MetalMarket::Update update = op.Update;
+          std::cout << "# Metal update from id " << entity_id << std::endl;
+          std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
+        });
+    view.OnComponentUpdate<market::ToolsMarket>(
+        [&](const worker::ComponentUpdateOp<market::ToolsMarket >& op) {
+          worker::EntityId entity_id = op.EntityId;
+          market::ToolsMarket::Update update = op.Update;
+          std::cout << "# Tools update from id " << entity_id << std::endl;
+          std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
+        });
+  }
+  void CreateMonitorEntity() {
+    worker::Entity monitor_entity;
+
+    // Market component IDs start at 3010 and increment to 3015
+    uint market_id = 3010;
+    std::vector<improbable::ComponentSetInterest_Query> all_queries;
+    for (auto& good : tracked_goods) {
+        improbable::ComponentSetInterest_QueryConstraint my_constraint;
+        my_constraint.set_component_constraint({market_id});
+        improbable::ComponentSetInterest_Query my_query;
+        my_query.set_constraint(my_constraint);
+
+        my_query.set_result_component_id({market_id});
+        market_id++;
+        all_queries.push_back(my_query);
+    }
+    worker::List<improbable::ComponentSetInterest_Query> const_queries;
+    const_queries.insert(const_queries.begin(), all_queries.begin(), all_queries.end());
+
+    improbable::ComponentSetInterest all_markets_interest;
+    all_markets_interest.set_queries(const_queries);
+
+    monitor_entity.Add<improbable::Metadata>({{"MonitorEntity"}});
+    monitor_entity.Add<improbable::Position>({{3, 0, 0}});
+    monitor_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+
+    monitor_entity.Add<improbable::AuthorityDelegation>({{{50, monitor_entity_id}}});
+    connection.SendCreateEntityRequest(monitor_entity, monitor_entity_id, {500});
+  }
 };
 
 // Intended to be stored serverside, this produces datafiles on-disk which can be checked for debugging/analysis purposes
