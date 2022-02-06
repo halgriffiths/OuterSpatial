@@ -26,7 +26,9 @@ public:
     : type(log_type) {
         log = {};
     }
-
+    bool exists(const std::string& name) {
+      return (log.count(name) > 0);
+    }
     void initialise(const std::string& name) {
         if (log.count(name) > 0) {
             return;// already registered
@@ -67,6 +69,10 @@ public:
         if (log.count(name) != 1) {
             return 0;// no entry found
         }
+        if (duration < 0) {
+          return average(name, max_size);
+        }
+
         auto start_time = log.at(name).back().second - duration;
         double total = 0;
         int range = 0;
@@ -162,6 +168,9 @@ public:
         bids.initialise(name);
         trades.initialise(name);
         net_supply.initialise(name);
+    }
+    bool exists(const std::string& name) {
+      return (prices.exists(name));
     }
 };
 

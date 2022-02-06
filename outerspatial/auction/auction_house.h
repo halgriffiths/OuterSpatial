@@ -333,15 +333,8 @@ public:
         std::int64_t expiry_ms = to_unix_timestamp_ms(std::chrono::system_clock::now()) + duration;
         while (!destroyed) {
             auto t1 = std::chrono::high_resolution_clock::now();
-            for (const auto& item : known_commodities) {
-                ResolveOffers(item.first);
-            }
-            logger.Log(Log::INFO, "Net spread profit for tick" + std::to_string(ticks) + ": " + std::to_string(spread_profit));
+            TickOnce();
             ticks++;
-            if (to_unix_timestamp_ms(std::chrono::system_clock::now()) > expiry_ms) {
-                logger.Log(Log::ERROR, "Shutting down (expiry time reached)");
-                Shutdown();
-            }
 
             std::chrono::duration<double, std::milli> elapsed_ms = std::chrono::high_resolution_clock::now() - t1;
             int elapsed = elapsed_ms.count();
@@ -350,15 +343,26 @@ public:
             } else {
                 logger.Log(Log::WARN, "AH thread overran on tick "+ std::to_string(ticks) + ": took " + std::to_string(elapsed) +"/" + std::to_string(TICK_TIME_MS) + "ms )");
             }
+            if (to_unix_timestamp_ms(std::chrono::system_clock::now()) > expiry_ms) {
+              logger.Log(Log::ERROR, "Shutting down (expiry time reached)");
+              Shutdown();
+            }
         }
     }
 
     void TickOnce() {
-        for (const auto& item : known_commodities) {
-            ResolveOffers(item.first);
-        }
-        logger.Log(Log::INFO, "Net spread profit: " + std::to_string(spread_profit));
-        ticks++;
+      for (const auto& item : known_commodities) {
+        ResolveOffers(item.first);
+      }
+      logger.Log(Log::INFO, "Net spread profit for tick" + std::to_string(ticks) + ": " + std::to_string(spread_profit));
+
+      UpdatePriceInfoComponent<market::FoodMarket>("food");
+      UpdatePriceInfoComponent<market::WoodMarket>("wood");
+      UpdatePriceInfoComponent<market::FertilizerMarket>("fertilizer");
+      UpdatePriceInfoComponent<market::OreMarket>("ore");
+      UpdatePriceInfoComponent<market::MetalMarket>("metal");
+      UpdatePriceInfoComponent<market::ToolsMarket>("tools");
+
     }
 private:
     // SPATIALOS CONCEPTS
