@@ -197,18 +197,17 @@ int main(int argc, char** argv) {
     // get random price
     AH_ptr->history.prices.add("food", (double)(rand() % 100 + 1));
     AH_ptr->history.trades.add("food", 1);
-    AH_ptr->UpdatePriceInfoComponent<market::FoodMarket>("food");
 
     if (odd) {
       //tick half as often (experiment)
       AH_ptr->history.prices.add("wood", (double)(rand() % 100 + 1));
       AH_ptr->history.trades.add("wood", 1);
-      AH_ptr->UpdatePriceInfoComponent<market::WoodMarket>("wood");
       odd = false;
     } else {
       odd = true;
     }
 
+    AH_ptr->TickOnce();
     auto t_now = std::chrono::steady_clock::now();
     elapsed_time += std::chrono::duration<double>(t_now - last_tick_time)
                         .count();  // Amount of time since last tick, in seconds
