@@ -126,45 +126,51 @@ private:
         });
     view.OnComponentUpdate<market::FoodMarket>(
         [&](const worker::ComponentUpdateOp<market::FoodMarket >& op) {
+          std::string commodity = "food";
           worker::EntityId entity_id = op.EntityId;
           market::FoodMarket::Update update = op.Update;
-          std::cout << "# Food update from id " << entity_id << std::endl;
-          std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
+          local_history.prices.add(commodity, update.listing()->price_info().curr_price());
+          local_history.net_supply.add(commodity, update.listing()->price_info().curr_net_supply());
         });
     view.OnComponentUpdate<market::WoodMarket>(
         [&](const worker::ComponentUpdateOp<market::WoodMarket >& op) {
+          std::string commodity = "wood";
           worker::EntityId entity_id = op.EntityId;
           market::WoodMarket::Update update = op.Update;
-          std::cout << "# Wood update from id " << entity_id << std::endl;
-          std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
+          local_history.prices.add(commodity, update.listing()->price_info().curr_price());
+          local_history.net_supply.add(commodity, update.listing()->price_info().curr_net_supply());
         });
     view.OnComponentUpdate<market::FertilizerMarket>(
         [&](const worker::ComponentUpdateOp<market::FertilizerMarket >& op) {
+          std::string commodity = "fertilizer";
           worker::EntityId entity_id = op.EntityId;
           market::FertilizerMarket::Update update = op.Update;
-          std::cout << "# Fertilizer update from id " << entity_id << std::endl;
-          std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
+          local_history.prices.add(commodity, update.listing()->price_info().curr_price());
+          local_history.net_supply.add(commodity, update.listing()->price_info().curr_net_supply());
         });
     view.OnComponentUpdate<market::OreMarket>(
         [&](const worker::ComponentUpdateOp<market::OreMarket >& op) {
+          std::string commodity = "ore";
           worker::EntityId entity_id = op.EntityId;
           market::OreMarket::Update update = op.Update;
-          std::cout << "# Ore update from id " << entity_id << std::endl;
-          std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
+          local_history.prices.add(commodity, update.listing()->price_info().curr_price());
+          local_history.net_supply.add(commodity, update.listing()->price_info().curr_net_supply());
         });
     view.OnComponentUpdate<market::MetalMarket>(
         [&](const worker::ComponentUpdateOp<market::MetalMarket >& op) {
+          std::string commodity = "metal";
           worker::EntityId entity_id = op.EntityId;
           market::MetalMarket::Update update = op.Update;
-          std::cout << "# Metal update from id " << entity_id << std::endl;
-          std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
+          local_history.prices.add(commodity, update.listing()->price_info().curr_price());
+          local_history.net_supply.add(commodity, update.listing()->price_info().curr_net_supply());
         });
     view.OnComponentUpdate<market::ToolsMarket>(
         [&](const worker::ComponentUpdateOp<market::ToolsMarket >& op) {
+          std::string commodity = "tools";
           worker::EntityId entity_id = op.EntityId;
           market::ToolsMarket::Update update = op.Update;
-          std::cout << "# Tools update from id " << entity_id << std::endl;
-          std::cout << "Current price: " << update.listing()->price_info().curr_price() << std::endl;
+          local_history.prices.add(commodity, update.listing()->price_info().curr_price());
+          local_history.net_supply.add(commodity, update.listing()->price_info().curr_net_supply());
         });
   }
   void CreateMonitorEntity() {
