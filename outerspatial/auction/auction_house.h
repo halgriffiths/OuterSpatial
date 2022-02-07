@@ -60,6 +60,7 @@ public:
         , unique_name(std::string("AH")+std::to_string(id))
         , logger(FileLogger(verbosity, unique_name)) {
         ConstructInitialAuctionHouseEntity(auction_house_id);
+        MakeCallbacks();
         message_thread = std::thread([this] { MessageLoop(); });
     }
 
