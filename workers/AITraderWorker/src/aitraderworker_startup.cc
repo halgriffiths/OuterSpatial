@@ -25,8 +25,7 @@ using ComponentRegistry =
         trader::Metadata,
         trader::Buildings,
         market::RegisterCommandComponent,
-        market::MakeBidOfferCommandComponent,
-        market::MakeAskOfferCommandComponent,
+        market::MakeOfferCommandComponent,
         improbable::Position,
         improbable::restricted::Worker,
         improbable::restricted::Partition>;

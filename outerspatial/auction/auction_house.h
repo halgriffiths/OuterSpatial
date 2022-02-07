@@ -377,8 +377,7 @@ private:
       AH_entity.Add<improbable::Position>({{0, 0, 0}});
       AH_entity.Add<improbable::AuthorityDelegation>({{{3020, 3}}});
       AH_entity.Add<market::RegisterCommandComponent>({});
-      AH_entity.Add<market::MakeBidOfferCommandComponent>({});
-      AH_entity.Add<market::MakeAskOfferCommandComponent>({});
+      AH_entity.Add<market::MakeOfferCommandComponent>({});
       AH_entity.Add<market::FoodMarket>({{{
                                               "food",
                                               0.5

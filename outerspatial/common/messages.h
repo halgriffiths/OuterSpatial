@@ -179,13 +179,25 @@ struct AskResult {
 };
 
 struct BidOffer {
+    using BidRequestId = worker::RequestId<worker::IncomingCommandRequest<market::MakeOfferCommandComponent::Commands::MakeBidOffer>>;
+
     std::uint64_t expiry_ms; //unix time in ns
     int sender_id;
     std::string commodity;
     int quantity;
     double unit_price;
+    BidRequestId request_id;
+
     BidOffer(int sender_id, std::string  commodity_name, int quantity, double unit_price, std::uint64_t expiry_ms = 0)
             : sender_id(sender_id)
+            , commodity(std::move(commodity_name))
+            , quantity(quantity)
+            , unit_price(unit_price)
+            , expiry_ms(expiry_ms) {};
+
+    BidOffer(BidRequestId req_id, int sender_id, std::string  commodity_name, int quantity, double unit_price, std::uint64_t expiry_ms = 0)
+            : request_id(req_id)
+            , sender_id(sender_id)
             , commodity(std::move(commodity_name))
             , quantity(quantity)
             , unit_price(unit_price)
@@ -205,14 +217,23 @@ struct BidOffer {
 };
 
 struct AskOffer {
+    using AskRequestId = worker::RequestId<worker::IncomingCommandRequest<market::MakeOfferCommandComponent::Commands::MakeAskOffer>>;
     std::uint64_t expiry_ms; //unix time in ns
     int sender_id;
     std::string commodity;
     int quantity;
     double unit_price;
+    AskRequestId request_id;
 
     AskOffer(int sender_id, std::string  commodity_name, int quantity, double unit_price, std::uint64_t expiry_ms = 0)
             : sender_id(sender_id)
+            , commodity(std::move(commodity_name))
+            , quantity(quantity)
+            , unit_price(unit_price)
+            , expiry_ms(expiry_ms) {};
+    AskOffer(AskRequestId req_id, int sender_id, std::string  commodity_name, int quantity, double unit_price, std::uint64_t expiry_ms = 0)
+            : request_id(req_id)
+            , sender_id(sender_id)
             , commodity(std::move(commodity_name))
             , quantity(quantity)
             , unit_price(unit_price)
