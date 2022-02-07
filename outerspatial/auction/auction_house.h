@@ -456,20 +456,33 @@ private:
     }
     void MakeCallbacks() override {
       using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
+      using MakeBidOfferCommand = market::MakeOfferCommandComponent::Commands::MakeBidOffer;
+      using MakeAskOfferCommand = market::MakeOfferCommandComponent::Commands::MakeAskOffer;
       view.OnCommandRequest<RegisterTraderCommand>(
           [&](const worker::CommandRequestOp<RegisterTraderCommand>& op) {
             connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
                                       "Received register request.\nCallerWorkerEntityId: " + std::to_string(op.CallerWorkerEntityId)
                                       + "\nEntityId: "+std::to_string(op.EntityId)
                                       + "\n(manually provided) Sender Id: " + std::to_string(op.Request.sender_id()));});
-      view.OnCreateEntityResponse([&](const worker::CreateEntityResponseOp& op) {
-        if (op.StatusCode == worker::StatusCode::kSuccess) {
-          connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
-                                    "Successfully created entity");
-        } else {
-          connection.SendLogMessage(worker::LogLevel::kWarn, "AuctionHouse",
-                                    "Failed to create entity");
-        };});
+
+      view.OnCommandRequest<MakeBidOfferCommand>(
+          [&](const worker::CommandRequestOp<MakeBidOfferCommand>& op) {
+            std::cout << "Bid Offer received from #" << op.EntityId << "/" << op.Request.sender_id() <<  std::endl;
+            std::cout << op.Request.good() << ": " << op.Request.quantity() << "@" << op.Request.unit_price() << std::endl;
+
+            BidOffer bid = {op.RequestId,
+                            static_cast<int>(op.Request.sender_id()),
+                            op.Request.good(),
+                            op.Request.quantity(),
+                            op.Request.unit_price(),
+                            op.Request.expiry_time()};
+            BidResult result = {static_cast<int>(op.Request.sender_id()),
+                                op.Request.good(),
+                                op.Request.unit_price()};
+            bid_book_mutex.lock();
+            bid_book[op.Request.good()].push_back({bid, result});
+            bid_book_mutex.unlock();
+          });
     }
     // Transaction functions
     bool CheckBidStake(BidOffer& offer) {

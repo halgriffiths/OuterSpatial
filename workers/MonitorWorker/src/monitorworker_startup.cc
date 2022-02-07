@@ -190,11 +190,17 @@ int main(int argc, char** argv) {
   sigfillset(&sa.sa_mask);
   sigaction(SIGINT,&sa,NULL);
 
+  using MakeBidOfferCommand = market::MakeOfferCommandComponent::Commands::MakeBidOffer;
+  messages::BidOffer offer{
+      connection.GetWorkerEntityId(),
+      "food",
+      10,
+      1,
+      2.5
+  };
+  connection.SendCommandRequest<MakeBidOfferCommand>(10, offer, {10000});
   // Reserve 2 ids
   connection.SendReserveEntityIdsRequest(2, {1000});
-  // Create an entity with Interest and AuthorityDelegation components
-  // Create a PartitionEntity
-  // AssignPartitionCommand to gain entity 1
   auto metrics_start_time = to_unix_timestamp_ms(std::chrono::high_resolution_clock::now());
   const std::vector<std::string>& tracked_goods = {"food", "wood"};
   std::vector<std::string> tracked_roles = {"farmer", "woodcutter"};

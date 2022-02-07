@@ -158,7 +158,6 @@ int main(int argc, char** argv) {
   });
 
   using AssignPartitionCommand = improbable::restricted::Worker::Commands::AssignPartition;
-
   // In real code, we would probably want to retry here.
   view.OnCommandResponse<AssignPartitionCommand>(
       [&](const worker::CommandResponseOp<AssignPartitionCommand>& op) {
@@ -172,13 +171,19 @@ int main(int argc, char** argv) {
                                         " message: " + op.Message);
         }
       });
-
   view.OnAddComponent<improbable::restricted::Worker>(
       [&](worker::AddComponentOp<improbable::restricted::Worker> op) {
         connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
                                   "Worker with ID " + op.Data.worker_id() + " created component.");
       });
-
+  view.OnCreateEntityResponse([&](const worker::CreateEntityResponseOp& op) {
+    if (op.StatusCode == worker::StatusCode::kSuccess) {
+      connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
+                                "Successfully created entity");
+    } else {
+      connection.SendLogMessage(worker::LogLevel::kWarn, "AuctionHouse",
+                                "Failed to create entity");
+    };});
   // MY STUFF STARTS HERE
 
   connection.SendCommandRequest<AssignPartitionCommand>(
@@ -187,23 +192,21 @@ int main(int argc, char** argv) {
   double elapsed_time = 0.0;
   auto last_tick_time = std::chrono::steady_clock::now();
 
-  bool odd = false;
+
   AH_ptr->history.initialise("food");
   AH_ptr->history.initialise("wood");
   while (is_connected) {
     view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
 
-    // get random price
-    AH_ptr->history.prices.add("food", (double)(rand() % 100 + 1));
-    AH_ptr->history.trades.add("food", 1);
+    // simulate some random trades ig
+    if (rand() % 5 == 2) {
+      AH_ptr->history.prices.add("food", (double)(rand() % 100 + 1));
+      AH_ptr->history.trades.add("food", 1);
+    }
 
-    if (odd) {
-      //tick half as often (experiment)
+    if (rand() % 5 == 2) {
       AH_ptr->history.prices.add("wood", (double)(rand() % 100 + 1));
       AH_ptr->history.trades.add("wood", 1);
-      odd = false;
-    } else {
-      odd = true;
     }
 
     AH_ptr->TickOnce();
