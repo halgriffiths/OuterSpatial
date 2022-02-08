@@ -1,11 +1,21 @@
 package messages;
 
+import "commodity.schema";
+
+enum AgentType {
+  MONITOR = 0;
+  AI_TRADER= 1;
+  HUMAN_TRADER = 2;
+}
+
 enum TradeOutcome {
+  // Order completed (all goods bought/sold)
   FILLED = 1;
-  // Some (but not all) of the requested goods were bought/sold
+  // Some, but not all, of the requested goods were bought/sold
   MIXED = 2;
   // Nothing was bought/sold
   EMPTY = 3;
+  // Order failed (eg: missing stake, malformed request, etc)
   REJECTED = 4;
 }
 
@@ -48,11 +58,15 @@ type AskResult {
 }
 
 type RegisterRequest {
-  EntityId sender_id = 1;
+  AgentType type = 1;
+  //int64 requested_id = 2;
 }
 
 type RegisterResponse {
   bool accepted = 1;
+
+  int64 entity_id = 2;
+  list<commodity.Commodity> listed_items = 3;
 }
 
 type ProduceCommandRequest {

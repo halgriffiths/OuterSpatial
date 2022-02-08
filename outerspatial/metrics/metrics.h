@@ -31,22 +31,11 @@ namespace {
     }
 }
 
-// Intended to be stored in-memory, this lightweight metric tracker is for human player UI purposes
-namespace metrics{
-    enum RegisterProgress {
-      NONE,
-      RESERVED_ID,
-      CREATED_MONITOR,
-      ASSIGNED_PARTITION
-    };
-}
-
 class LocalMetrics {
 public:
     std::vector<std::string> tracked_goods;
-    std::vector<std::string> tracked_roles;
     History local_history = {};
-    metrics::RegisterProgress progress = metrics::NONE;
+    ah::RegisterProgress progress = ah::NONE;
 private:
     friend PlayerTrader;
 
@@ -57,25 +46,31 @@ private:
     worker::Connection& connection;
     worker::View& view;
 
+    bool initialised = false;
+    worker::EntityId auction_house_id;
 
   public:
     worker::EntityId monitor_entity_id;
 
-    LocalMetrics(worker::Connection& connection, worker::View& view, std::uint64_t start_time, const std::vector<std::string>& tracked_goods, std::vector<std::string> tracked_roles)
-    : tracked_goods(tracked_goods)
-    , tracked_roles(tracked_roles)
-    , start_time(start_time)
+    LocalMetrics(worker::Connection& connection, worker::View& view, std::uint64_t start_time, worker::EntityId ah_id)
+    : start_time(start_time)
     , connection(connection)
+    , auction_house_id(ah_id)
     , view(view)
      {
         offset = to_unix_timestamp_ms(std::chrono::system_clock::now()) - start_time;
-        for (auto& item : tracked_goods) {
-            local_history.initialise(item);
-        }
        MakeCallbacks();
+       using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
+       messages::RegisterRequest reg_req{messages::AgentType::MONITOR};
+       connection.SendCommandRequest<RegisterTraderCommand>(auction_house_id, reg_req, {5000});
     }
 
     void PrintSummary() {
+      if (!initialised) {
+        std::cout << "Not initialised yet!" << std::endl;
+        return;
+      }
+      std::cout << "== SUMMARY ==" << std::endl;
       for (auto& good : tracked_goods) {
         std::cout << "# " << good << std::endl;
         if (local_history.exists(good)) {
@@ -87,36 +82,20 @@ private:
     }
 
   void MakeCallbacks() {
-    view.OnReserveEntityIdsResponse([&](const worker::ReserveEntityIdsResponseOp& op) {
-      if (op.StatusCode == worker::StatusCode::kSuccess) {
-        monitor_entity_id = *op.FirstEntityId;
-        progress = metrics::RESERVED_ID;
-      } else {
-        std::cout << "Received failure code: " << op.Message << std::endl;
-      }
-    });
-    view.OnCreateEntityResponse([&](const worker::CreateEntityResponseOp& op) {
-      if (op.StatusCode == worker::StatusCode::kSuccess) {
-        connection.SendLogMessage(worker::LogLevel::kInfo, "Monitor",
-                                  "Successfully created entity");
-        progress = metrics::CREATED_MONITOR;
-      } else {
-        connection.SendLogMessage(worker::LogLevel::kWarn, "Monitor",
-                                  "Failed to create entity");
-      };});
-    using AssignPartitionCommand = improbable::restricted::Worker::Commands::AssignPartition;
-    view.OnCommandResponse<AssignPartitionCommand>(
-        [&](const worker::CommandResponseOp<AssignPartitionCommand>& op) {
-          if (op.StatusCode == worker::StatusCode::kSuccess) {
-            connection.SendLogMessage(worker::LogLevel::kInfo, "Monitor",
-                                      "Successfully assigned partition.");
-            progress = metrics::ASSIGNED_PARTITION;
-          } else {
-            connection.SendLogMessage(worker::LogLevel::kError, "Monitor",
-                                      "Failed to assign partition: error code : " +
-                                      std::to_string(static_cast<std::uint8_t>(op.StatusCode)) +
-                                      " message: " + op.Message);
-          }
+    using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
+
+    view.OnCommandResponse<RegisterTraderCommand>(
+        [&](const worker::CommandResponseOp<RegisterTraderCommand>& op) {
+            if (op.StatusCode != worker::StatusCode::kSuccess || !op.Response->accepted()) {
+              // failed to register!
+              return;
+            }
+            monitor_entity_id = op.Response->entity_id();
+            for (auto& commodity : op.Response->listed_items()) {
+              tracked_goods.push_back(commodity.name());
+              local_history.initialise(commodity.name());
+            }
+            initialised = true;
         });
     view.OnComponentUpdate<market::FoodMarket>(
         [&](const worker::ComponentUpdateOp<market::FoodMarket >& op) {
@@ -166,35 +145,6 @@ private:
           local_history.prices.add(commodity, update.listing()->price_info().curr_price());
           local_history.net_supply.add(commodity, update.listing()->price_info().curr_net_supply());
         });
-  }
-  void CreateMonitorEntity() {
-    worker::Entity monitor_entity;
-
-    // Market component IDs start at 3010 and increment to 3015
-    uint market_id = 3010;
-    std::vector<improbable::ComponentSetInterest_Query> all_queries;
-    for (auto& good : tracked_goods) {
-        improbable::ComponentSetInterest_QueryConstraint my_constraint;
-        my_constraint.set_component_constraint({market_id});
-        improbable::ComponentSetInterest_Query my_query;
-        my_query.set_constraint(my_constraint);
-
-        my_query.set_result_component_id({market_id});
-        market_id++;
-        all_queries.push_back(my_query);
-    }
-    worker::List<improbable::ComponentSetInterest_Query> const_queries;
-    const_queries.insert(const_queries.begin(), all_queries.begin(), all_queries.end());
-
-    improbable::ComponentSetInterest all_markets_interest;
-    all_markets_interest.set_queries(const_queries);
-
-    monitor_entity.Add<improbable::Metadata>({{"MonitorEntity"}});
-    monitor_entity.Add<improbable::Position>({{3, 0, 0}});
-    monitor_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
-
-    monitor_entity.Add<improbable::AuthorityDelegation>({{{50, monitor_entity_id}}});
-    connection.SendCreateEntityRequest(monitor_entity, monitor_entity_id, {500});
   }
 };
 

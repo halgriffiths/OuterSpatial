@@ -6,4 +6,5 @@ type Commodity {
     string name = 1;
     // how much space 1 unit of the commodity takes up in inventory
     double size = 2;
+    int32 component_id = 3;
 }

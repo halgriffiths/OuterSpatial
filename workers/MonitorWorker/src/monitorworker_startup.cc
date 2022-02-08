@@ -200,37 +200,8 @@ int main(int argc, char** argv) {
   };
   connection.SendCommandRequest<MakeBidOfferCommand>(10, offer, {10000});
   // Reserve 2 ids
-  connection.SendReserveEntityIdsRequest(2, {1000});
   auto metrics_start_time = to_unix_timestamp_ms(std::chrono::high_resolution_clock::now());
-  const std::vector<std::string>& tracked_goods = {"food", "wood"};
-  std::vector<std::string> tracked_roles = {"farmer", "woodcutter"};
-  std::shared_ptr<LocalMetrics> local_metrics = std::make_shared<LocalMetrics>(connection, view, metrics_start_time, tracked_goods, tracked_roles);
-
-  do {
-    if (quit.load()) return ErrorExitStatus;
-    view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
-    if (local_metrics->progress == metrics::RESERVED_ID) {
-      local_metrics->CreateMonitorEntity();
-      std::cout << "Create requests sent with id: #" << local_metrics->monitor_entity_id << std::endl;
-    }
-  } while (local_metrics->progress != metrics::RESERVED_ID);
-
-  std::cout << "Reserved IDs" << std::endl;
-
-  do {
-    if (quit.load()) return ErrorExitStatus;
-    view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
-    if (local_metrics->progress == metrics::CREATED_MONITOR) {
-      using AssignPartitionCommand = improbable::restricted::Worker::Commands::AssignPartition;
-      connection.SendCommandRequest<AssignPartitionCommand>(
-          connection.GetWorkerEntityId(), {local_metrics->monitor_entity_id}, /* default timeout */ {});
-    }
-  } while(local_metrics->progress != metrics::CREATED_MONITOR);
-
-  do {
-    if (quit.load()) return ErrorExitStatus;
-    view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
-  } while(local_metrics->progress != metrics::ASSIGNED_PARTITION);
+  std::shared_ptr<LocalMetrics> local_metrics = std::make_shared<LocalMetrics>(connection, view, metrics_start_time, 10);
 
   std::cout << "Entering main loop" << std::endl;
   local_metrics->PrintSummary();

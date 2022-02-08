@@ -308,7 +308,7 @@ public:
         : sender_id(sender_id)
         , type(Msg::EMPTY)
         , empty_message(EmptyMessage()) {};
-    
+
     Msg::MessageType GetType() {
         return type;
     }

@@ -21,6 +21,14 @@
 
 #include <thread>
 
+namespace ah {
+  enum RegisterProgress {
+    NONE,
+    RESERVED_ID,
+    CREATED_ENTITY,
+    ASSIGNED_PARTITION
+  };
+}
 class AuctionHouse : public Agent {
 public:
     History history;
@@ -381,7 +389,8 @@ private:
       AH_entity.Add<market::MakeOfferCommandComponent>({});
       AH_entity.Add<market::FoodMarket>({{{
                                               "food",
-                                              0.5
+                                              0.5,
+                                              3010
                                           },
                                              {
                                                  10.0,
@@ -392,7 +401,8 @@ private:
                                              }}});
       AH_entity.Add<market::WoodMarket>({{{
                                               "wood",
-                                              1
+                                              1,
+                                              3011
                                           },
                                              {
                                                  3.0,
@@ -403,7 +413,8 @@ private:
                                              }}});
       AH_entity.Add<market::FertilizerMarket>({{{
                                                     "fertilizer",
-                                                    0.1
+                                                    0.1,
+                                                    3012
                                                 },
                                                    {
                                                        11.0,
@@ -414,7 +425,8 @@ private:
                                                    }}});
       AH_entity.Add<market::OreMarket>({{{
                                              "ore",
-                                             1
+                                             1,
+                                             3013
                                          },
                                             {
                                                 1.0,
@@ -425,7 +437,8 @@ private:
                                             }}});
       AH_entity.Add<market::MetalMarket>({{{
                                                "metal",
-                                               1
+                                               1,
+                                               3014
                                            },
                                               {
                                                   2.0,
@@ -436,7 +449,8 @@ private:
                                               }}});
       AH_entity.Add<market::ToolsMarket>({{{
                                                "tools",
-                                               1
+                                               1,
+                                               3015
                                            },
                                               {
                                                   5.0,
@@ -461,10 +475,39 @@ private:
       using MakeAskOfferCommand = market::MakeOfferCommandComponent::Commands::MakeAskOffer;
       view.OnCommandRequest<RegisterTraderCommand>(
           [&](const worker::CommandRequestOp<RegisterTraderCommand>& op) {
+            std::string req_type = "unknown";
+            if (op.Request.type() == messages::AgentType::MONITOR) {
+              req_type = "Monitor";
+            } else if (op.Request.type() == messages::AgentType::AI_TRADER) {
+              req_type = "AITrader";
+            }else if (op.Request.type() == messages::AgentType::HUMAN_TRADER) {
+              req_type = "HumanTrader";
+            }
             connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
                                       "Received register request.\nCallerWorkerEntityId: " + std::to_string(op.CallerWorkerEntityId)
-                                      + "\nEntityId: "+std::to_string(op.EntityId)
-                                      + "\n(manually provided) Sender Id: " + std::to_string(op.Request.sender_id()));});
+                                      + " for new trader of type: " + req_type);
+
+          messages::RegisterResponse req_res;
+          int result = RegisterNewAgent(op);
+          if (result == 0) {
+            req_res.set_accepted(false);
+          } else {
+            req_res.set_accepted(true);
+            req_res.set_entity_id(result);
+            worker::List<commodity::Commodity> commodities;
+            for (auto& good : known_commodities) {
+              commodity::Commodity comm{
+                  good.second.name,
+                  good.second.size,
+                  good.second.market_component_id};
+              commodities.emplace_back(comm);
+            }
+            req_res.set_listed_items(commodities);
+          }
+          connection.SendCommandResponse<RegisterTraderCommand>(op.RequestId, req_res);
+            connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
+                  "Registered new" + req_type +"trader with ID #" + std::to_string(result));
+          });
 
       view.OnCommandRequest<MakeBidOfferCommand>(
           [&](const worker::CommandRequestOp<MakeBidOfferCommand>& op) {
@@ -765,6 +808,127 @@ private:
     ask_book_mutex.unlock();
     }
 
+    int RegisterNewAgent(const worker::CommandRequestOp<market::RegisterCommandComponent::Commands::RegisterCommand>& op) {
+      using AssignPartitionCommand = improbable::restricted::Worker::Commands::AssignPartition;
+      // Set parameters
+      std::int32_t GetOpListTimeout = 100; // all times in ms unless stated otherwise
+      std::int32_t WhileLoopTimeout = 100;
+
+      worker::EntityId entity_id;
+      ah::RegisterProgress progress = ah::NONE;
+
+      // Set callbacks
+      {
+        view.OnReserveEntityIdsResponse([&](const worker::ReserveEntityIdsResponseOp& op) {
+          if (op.StatusCode == worker::StatusCode::kSuccess) {
+            entity_id = *op.FirstEntityId;
+            progress = ah::RESERVED_ID;
+          } else {
+            connection.SendLogMessage(
+                worker::LogLevel::kError, unique_name,
+                "Failed to reserve ID(s): error code : " +
+                std::to_string(static_cast<std::uint8_t>(op.StatusCode)) +
+                " message: " + op.Message);
+          }
+        });
+        view.OnCreateEntityResponse([&](const worker::CreateEntityResponseOp& op) {
+          if (op.StatusCode == worker::StatusCode::kSuccess) {
+            connection.SendLogMessage(worker::LogLevel::kInfo, unique_name,
+                                      "Successfully created entity");
+            progress = ah::CREATED_ENTITY;
+          } else {
+            connection.SendLogMessage(worker::LogLevel::kWarn, unique_name,
+                                      "Failed to create entity");
+          };
+        });
+        view.OnCommandResponse<AssignPartitionCommand>(
+            [&](const worker::CommandResponseOp<AssignPartitionCommand>& op) {
+              if (op.StatusCode == worker::StatusCode::kSuccess) {
+                connection.SendLogMessage(worker::LogLevel::kInfo, unique_name,
+                                          "Successfully assigned partition.");
+                progress = ah::ASSIGNED_PARTITION;
+              } else {
+                connection.SendLogMessage(
+                    worker::LogLevel::kError, unique_name,
+                    "Failed to assign partition: error code : " +
+                        std::to_string(static_cast<std::uint8_t>(op.StatusCode)) +
+                        " message: " + op.Message);
+              }
+            });
+      }
+      // Start
+      connection.SendReserveEntityIdsRequest(1, {});
+      //Wait for entity ID to be reserved
+      auto now_time = to_unix_timestamp_ms(std::chrono::high_resolution_clock::now());
+      do {
+        view.Process(connection.GetOpList(GetOpListTimeout));
+        if (progress == ah::RESERVED_ID) {
+          // CREATE ENTITY HERE
+          switch (op.Request.type()) {
+          case messages::AgentType::MONITOR:
+            CreateMonitorEntity(entity_id);
+            break;
+          case messages::AgentType::AI_TRADER:
+            break;
+          case messages::AgentType::HUMAN_TRADER:
+            break;
+          default:
+            return false;
+          }
+        }
+        if (to_unix_timestamp_ms(std::chrono::high_resolution_clock::now()) - now_time > WhileLoopTimeout) return 0;
+      } while (progress != ah::RESERVED_ID);
+
+      // Wait for create entity to be processed, then request partition assignment
+      now_time = to_unix_timestamp_ms(std::chrono::high_resolution_clock::now());
+      do {
+        view.Process(connection.GetOpList(GetOpListTimeout));
+        if (progress == ah::CREATED_ENTITY) {
+          connection.SendCommandRequest<AssignPartitionCommand>(
+              op.CallerWorkerEntityId, {entity_id}, /* default timeout */ {});
+        }
+        if (to_unix_timestamp_ms(std::chrono::high_resolution_clock::now()) - now_time > WhileLoopTimeout) return 0;
+      } while(progress != ah::CREATED_ENTITY);
+
+      // Wait for partition assignment to go through
+      now_time = to_unix_timestamp_ms(std::chrono::high_resolution_clock::now());
+      do {
+        view.Process(connection.GetOpList(GetOpListTimeout));
+        if (to_unix_timestamp_ms(std::chrono::high_resolution_clock::now()) - now_time > WhileLoopTimeout) return 0;
+      } while(progress != ah::ASSIGNED_PARTITION);
+      return entity_id;
+    }
+
+  void CreateMonitorEntity(worker::EntityId monitor_entity_id) {
+    worker::Entity monitor_entity;
+
+    // Market component IDs start at 3010 and increment to 3015
+    uint market_id;
+    std::vector<improbable::ComponentSetInterest_Query> all_queries;
+    for (auto& good : known_commodities) {
+      market_id = good.second.market_component_id;
+      improbable::ComponentSetInterest_QueryConstraint my_constraint;
+      my_constraint.set_component_constraint({market_id});
+      improbable::ComponentSetInterest_Query my_query;
+      my_query.set_constraint(my_constraint);
+
+      my_query.set_result_component_id({market_id});
+      market_id++;
+      all_queries.push_back(my_query);
+    }
+    worker::List<improbable::ComponentSetInterest_Query> const_queries;
+    const_queries.insert(const_queries.begin(), all_queries.begin(), all_queries.end());
+
+    improbable::ComponentSetInterest all_markets_interest;
+    all_markets_interest.set_queries(const_queries);
+
+    monitor_entity.Add<improbable::Metadata>({{"MonitorEntity"}});
+    monitor_entity.Add<improbable::Position>({{3, 0, 0}});
+    monitor_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+
+    monitor_entity.Add<improbable::AuthorityDelegation>({{{50, monitor_entity_id}}});
+    connection.SendCreateEntityRequest(monitor_entity, monitor_entity_id, {});
+  }
 };
 
 #endif//CPPBAZAARBOT_AUCTION_HOUSE_H

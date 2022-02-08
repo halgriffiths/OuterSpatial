@@ -166,18 +166,9 @@ int main(int argc, char** argv) {
                                   "Worker with ID " + op.Data.worker_id() + " connected.");
       });
   // MY STUFF STARTS HERE
-  using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
-  using RegisterRequest = market::RegisterCommandComponent::Commands::RegisterCommand::Request;
   connection.SendCommandRequest<AssignPartitionCommand>(
       connection.GetWorkerEntityId(), {AItraderPartitionId}, /* default timeout */ {});
-  auto res = connection.SendCommandRequest<RegisterTraderCommand>(12, RegisterRequest(1), {});
-  if (!res) {
-    connection.SendLogMessage(worker::LogLevel::kError, "AITrader",
-                              "Failed to make RegisterRequest: "+res.GetErrorMessage());
-  } else {
-    connection.SendLogMessage(worker::LogLevel::kInfo, "AITrader",
-                              "Sent RegisterRequest");
-  }
+
 
   double elapsed_time = 0.0;
   auto last_tick_time = std::chrono::steady_clock::now();

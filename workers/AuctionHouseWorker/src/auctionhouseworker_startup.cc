@@ -36,6 +36,7 @@ using ComponentRegistry =
         trader::ProduceCommandComponent,
         sample::LoginListenerSet,
         sample::PositionSet,
+        improbable::Interest,
         improbable::Position,
         improbable::Metadata,
         improbable::Persistence,
@@ -192,8 +193,20 @@ int main(int argc, char** argv) {
   double elapsed_time = 0.0;
   auto last_tick_time = std::chrono::steady_clock::now();
 
+  Commodity food("food", 0.5, 3010);
+  Commodity wood("wood", 1, 3011);
+  Commodity fertilizer("fertilizer", 0.1, 3012);
+  Commodity ore("ore", 1, 3013);
+  Commodity metal("metal", 1, 3014);
+  Commodity tools("tools", 1, 3015);
 
-  AH_ptr->history.initialise("food");
+  AH_ptr->RegisterCommodity(food);
+  AH_ptr->RegisterCommodity(wood);
+  AH_ptr->RegisterCommodity(fertilizer);
+  AH_ptr->RegisterCommodity(ore);
+  AH_ptr->RegisterCommodity(metal);
+  AH_ptr->RegisterCommodity(tools);
+
   AH_ptr->history.initialise("wood");
   while (is_connected) {
     view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
