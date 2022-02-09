@@ -199,6 +199,9 @@ int main(int argc, char** argv) {
       2.5
   };
   connection.SendCommandRequest<MakeBidOfferCommand>(10, offer, {10000});
+  using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
+  messages::RegisterRequest reg_req{messages::AgentType::AI_TRADER};
+  connection.SendCommandRequest<RegisterTraderCommand>(10, reg_req, {5000});
   // Reserve 2 ids
   auto metrics_start_time = to_unix_timestamp_ms(std::chrono::high_resolution_clock::now());
   std::shared_ptr<LocalMetrics> local_metrics = std::make_shared<LocalMetrics>(connection, view, metrics_start_time, 10);

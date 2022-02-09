@@ -388,7 +388,7 @@ private:
 
       AH_entity.Add<improbable::Metadata>({{"AuctionHouseEntity"}});
       AH_entity.Add<improbable::Persistence>({});
-      AH_entity.Add<improbable::Position>({{0, 0, 0}});
+      AH_entity.Add<improbable::Position>({{1, 0, static_cast<double>(AH_id)}});
       AH_entity.Add<improbable::AuthorityDelegation>({{{3020, 3}}});
       AH_entity.Add<market::RegisterCommandComponent>({});
       AH_entity.Add<market::MakeOfferCommandComponent>({});
@@ -926,7 +926,7 @@ private:
     all_markets_interest.set_queries(const_queries);
 
     monitor_entity.Add<improbable::Metadata>({{"MonitorEntity"}});
-    monitor_entity.Add<improbable::Position>({{3, static_cast<double>(monitor_entity_id), 0}});
+    monitor_entity.Add<improbable::Position>({{2, 0, static_cast<double>(monitor_entity_id)}});
     monitor_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
 
     monitor_entity.Add<improbable::AuthorityDelegation>({{{50, monitor_entity_id}}});
@@ -974,7 +974,7 @@ private:
       trader_entity.Add<trader::AIBuildings>({{farm1, farm2}, 20});
     }
     trader_entity.Add<improbable::Metadata>({{"AITraderEntity"}});
-    trader_entity.Add<improbable::Position>({{5, static_cast<double>(trader_entity_id), 0}});
+    trader_entity.Add<improbable::Position>({{3, 0, static_cast<double>(trader_entity_id)}});
 
     trader_entity.Add<improbable::AuthorityDelegation>({{{50, trader_entity_id}}});
     connection.SendCreateEntityRequest(trader_entity, trader_entity_id, {});
