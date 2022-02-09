@@ -27,6 +27,7 @@ type Building {
   // operate ALL the building(s) with the lowest priority score (1 = max priority)
   int32 priority = 3;
   string debug_name = 4;
+  bool repeatable = 5;
 }
 
 component Metadata {

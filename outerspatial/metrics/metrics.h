@@ -61,7 +61,7 @@ private:
         offset = to_unix_timestamp_ms(std::chrono::system_clock::now()) - start_time;
        MakeCallbacks();
        using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
-       messages::RegisterRequest reg_req{messages::AgentType::MONITOR};
+       messages::RegisterRequest reg_req{messages::AgentType::MONITOR, messages::AIRole::NONE};
        connection.SendCommandRequest<RegisterTraderCommand>(auction_house_id, reg_req, {5000});
     }
 

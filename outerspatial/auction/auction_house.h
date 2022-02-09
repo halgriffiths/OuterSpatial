@@ -21,9 +21,32 @@
 
 #include <thread>
 
-namespace {
-  commodity::Commodity ToSchemaCommodity(Commodity& comm) {
-    return {comm.name, comm.size, comm.market_component_id};
+
+std::string RoleToString(messages::AIRole role) {
+  switch (role) {
+  case messages::AIRole::HUMAN:
+    return "human";
+    break;
+  case messages::AIRole::FARMER:
+    return "farmer";
+    break;
+  case messages::AIRole::WOODCUTTER:
+    return "woodcutter";
+    break;
+  case messages::AIRole::COMPOSTER:
+    return "composter";
+    break;
+  case messages::AIRole::MINER:
+    return "miner";
+    break;
+  case messages::AIRole::REFINER:
+    return "refiner";
+    break;
+  case messages::AIRole::BLACKSMITH:
+    return "blacksmith";
+    break;
+  default:
+    return "unknown";
   }
 }
 namespace ah {
@@ -492,27 +515,15 @@ private:
                                       "Received register request.\nCallerWorkerEntityId: " + std::to_string(op.CallerWorkerEntityId)
                                       + " for new trader of type: " + req_type);
 
-          messages::RegisterResponse req_res;
-          int result = RegisterNewAgent(op);
-          if (result == 0) {
+
+          bool result = RegisterNewAgent(op);
+          if (!result) {
+            messages::RegisterResponse req_res;
             req_res.set_accepted(false);
-          } else {
-            req_res.set_accepted(true);
-            req_res.set_entity_id(result);
-            worker::List<commodity::Commodity> commodities;
-            for (auto& good : known_commodities) {
-              commodity::Commodity comm{
-                  good.second.name,
-                  good.second.size,
-                  good.second.market_component_id};
-              commodities.emplace_back(comm);
-            }
-            req_res.set_listed_items(commodities);
-          }
-          connection.SendCommandResponse<RegisterTraderCommand>(op.RequestId, req_res);
-            connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
-                  "Registered new" + req_type +"trader with ID #" + std::to_string(result));
-          });
+            connection.SendCommandResponse<RegisterTraderCommand>(op.RequestId, req_res);
+            connection.SendLogMessage(worker::LogLevel::kWarn, "AuctionHouse",
+                                      "Failed to register new" + req_type +"trader with ID #" + std::to_string(result));
+          }});
 
       view.OnCommandRequest<MakeBidOfferCommand>(
           [&](const worker::CommandRequestOp<MakeBidOfferCommand>& op) {
@@ -821,6 +832,7 @@ private:
 
       worker::EntityId entity_id;
       ah::RegisterProgress progress = ah::NONE;
+      messages::AIRole assigned_role = messages::AIRole::NONE;
 
       // Set callbacks
       {
@@ -874,7 +886,7 @@ private:
             CreateMonitorEntity(entity_id);
             break;
           case messages::AgentType::AI_TRADER:
-            CreateAITraderEntity(entity_id);
+            assigned_role = CreateAITraderEntity(entity_id, op.Request.requested_role());
             break;
           case messages::AgentType::HUMAN_TRADER:
             break;
@@ -902,7 +914,26 @@ private:
         view.Process(connection.GetOpList(GetOpListTimeout));
         if (to_unix_timestamp_ms(std::chrono::high_resolution_clock::now()) - now_time > WhileLoopTimeout) return 0;
       } while(progress != ah::ASSIGNED_PARTITION);
-      return entity_id;
+
+      // Send successful response
+      messages::RegisterResponse req_res;
+      req_res.set_accepted(true);
+      req_res.set_entity_id(entity_id);
+      req_res.set_assigned_role(assigned_role);
+      worker::List<commodity::Commodity> commodities;
+      for (auto& good : known_commodities) {
+        commodity::Commodity comm{
+            good.second.name,
+            good.second.size,
+            good.second.market_component_id};
+        commodities.emplace_back(comm);
+      }
+      req_res.set_listed_items(commodities);
+      using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
+      connection.SendCommandResponse<RegisterTraderCommand>(op.RequestId, req_res);
+      connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
+      "Registered new" + RoleToString(assigned_role) +"trader with ID #" + std::to_string(entity_id));
+      return true;
     }
 
   void CreateMonitorEntity(worker::EntityId monitor_entity_id) {
@@ -933,51 +964,232 @@ private:
     connection.SendCreateEntityRequest(monitor_entity, monitor_entity_id, {});
   }
 
-  void CreateAITraderEntity(worker::EntityId trader_entity_id) {
+  messages::AIRole CreateAITraderEntity(worker::EntityId trader_entity_id, messages::AIRole requested_role) {
     worker::Entity trader_entity;
+    if (requested_role == messages::AIRole::NONE) {
+      requested_role = messages::AIRole::FARMER;
+    }
+    switch (requested_role) {
+    case messages::AIRole::FARMER:
+      AddFarmerComponents(trader_entity);
+      break;
+    case messages::AIRole::WOODCUTTER:
+      AddWoodcutterComponents(trader_entity);
+      break;
+    case messages::AIRole::COMPOSTER:
+      AddComposterComponents(trader_entity);
+      break;
+    case messages::AIRole::MINER:
+      AddMinerComponents(trader_entity);
+      break;
+    case messages::AIRole::REFINER:
+      AddRefinerComponents(trader_entity);
+      break;
+    case messages::AIRole::BLACKSMITH:
+      AddBlacksmithComponents(trader_entity);
+      break;
+    default:
+      return messages::AIRole::NONE;
+      break;
+    }
+    trader_entity.Add<improbable::Metadata>({{RoleToString(requested_role) + std::to_string(trader_entity_id)}});
+    AddFarmerComponents(trader_entity);
+    trader_entity.Add<improbable::Position>({{3, 0, static_cast<double>(trader_entity_id)}});
 
-    // EXAMPLE: Create Farmer
-    {
-      // set interested in Food, Wood and Fertilizer
+    trader_entity.Add<improbable::AuthorityDelegation>({{{50, trader_entity_id}}});
+    connection.SendCreateEntityRequest(trader_entity, trader_entity_id, {});
+
+    return requested_role;
+  }
+
+  void AddFarmerComponents(worker::Entity& trader_entity) {
+      // set interested in Tools, Food, Wood and Fertilizer
       improbable::ComponentSetInterest_QueryConstraint market_constraint;
-      market_constraint.set_component_constraint(
-          {3001});  // only markets have this MakeOfferCommandComponent
-
+      market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
+      improbable::ComponentSetInterest_Query tools_query;
       improbable::ComponentSetInterest_Query food_query;
       improbable::ComponentSetInterest_Query wood_query;
       improbable::ComponentSetInterest_Query fertilizer_query;
+      tools_query.set_constraint(market_constraint).set_result_component_id({3015});
       food_query.set_constraint(market_constraint).set_result_component_id({3010});
       wood_query.set_constraint(market_constraint).set_result_component_id({3011});
       fertilizer_query.set_constraint(market_constraint).set_result_component_id({3012});
 
       worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, wood_query,
-                                                                            fertilizer_query};
+                                                                            fertilizer_query, tools_query};
       improbable::ComponentSetInterest all_markets_interest;
       all_markets_interest.set_queries(const_queries);
       trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
-    }
-    {
-      // Create production rules
-      // 1 fert + 1 tool (10% break change) + 1 wood = 6 food
-      trader::Building farm1 = {{{ToSchemaCommodity(known_commodities["food"]), 6, 1.0}},
-                                {{ToSchemaCommodity(known_commodities["fertilizer"]), 1, 1.0},
-                                 {ToSchemaCommodity(known_commodities["tools"]), 1, 0.1},
-                                 {ToSchemaCommodity(known_commodities["wood"]), 1, 1}},
-                                1,
-                                "AIFarm1"};
-      // 1 fert + 1 wood = 6 food
-      trader::Building farm2 = {{{ToSchemaCommodity(known_commodities["food"]), 3, 1.0}},
-                                {{ToSchemaCommodity(known_commodities["fertilizer"]), 1, 1.0},
-                                 {ToSchemaCommodity(known_commodities["wood"]), 1, 1}},
-                                2,
-                                "AIFarm2"};
-      trader_entity.Add<trader::AIBuildings>({{farm1, farm2}, 20});
-    }
-    trader_entity.Add<improbable::Metadata>({{"AITraderEntity"}});
-    trader_entity.Add<improbable::Position>({{3, 0, static_cast<double>(trader_entity_id)}});
 
-    trader_entity.Add<improbable::AuthorityDelegation>({{{50, trader_entity_id}}});
-    connection.SendCreateEntityRequest(trader_entity, trader_entity_id, {});
+    // Create production rules
+    // 1 fert + 1 tool (10% break change) + 1 wood = 6 food
+    trader::Building farm1 = {{{ToSchemaCommodity(known_commodities["food"]), 6, 1.0}},
+                              {{ToSchemaCommodity(known_commodities["fertilizer"]), 1, 1.0},
+                               {ToSchemaCommodity(known_commodities["tools"]), 1, 0.1},
+                               {ToSchemaCommodity(known_commodities["wood"]), 1, 1}},
+                              1,
+                              "AIFarm1", false};
+    // 1 fert + 1 wood = 3 food
+    trader::Building farm2 = {{{ToSchemaCommodity(known_commodities["food"]), 3, 1.0}},
+                              {{ToSchemaCommodity(known_commodities["fertilizer"]), 1, 1.0},
+                               {ToSchemaCommodity(known_commodities["wood"]), 1, 1}},
+                              2,
+                              "AIFarm2", false};
+    // 1 fert = 1 food
+    trader::Building farm3 = {{{ToSchemaCommodity(known_commodities["food"]), 1, 1.0}},
+                              {{ToSchemaCommodity(known_commodities["fertilizer"]), 1, 1.0}},
+                              3,
+                              "AIFarm3", false};
+      trader_entity.Add<trader::AIBuildings>({{farm1, farm2, farm3}, 20});
+  }
+
+  void AddWoodcutterComponents(worker::Entity& trader_entity) {
+    // set interested in Food, Wood and Tools
+    improbable::ComponentSetInterest_QueryConstraint market_constraint;
+    market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
+    improbable::ComponentSetInterest_Query tools_query;
+    improbable::ComponentSetInterest_Query food_query;
+    improbable::ComponentSetInterest_Query wood_query;
+    tools_query.set_constraint(market_constraint).set_result_component_id({3015});
+    food_query.set_constraint(market_constraint).set_result_component_id({3010});
+    wood_query.set_constraint(market_constraint).set_result_component_id({3011});
+
+    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, wood_query,
+                                                                          tools_query};
+    improbable::ComponentSetInterest all_markets_interest;
+    all_markets_interest.set_queries(const_queries);
+    trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+
+    // Create production rules
+    // 1 food + 1 tool (10% break change) = 2 wood
+    trader::Building lumberyard1 = {{{ToSchemaCommodity(known_commodities["wood"]), 2, 1.0}},
+                              {{ToSchemaCommodity(known_commodities["tools"]), 1, 0.1},
+                               {ToSchemaCommodity(known_commodities["food"]), 1, 1}},
+                              1,
+                              "AILumberyard1", false};
+    // 1 food = 1 wood
+    trader::Building lumberyard2 = {{{ToSchemaCommodity(known_commodities["wood"]), 1, 1.0}},
+                              {{ToSchemaCommodity(known_commodities["food"]), 1, 1}},
+                              2,
+                              "AILumberyard2", false};
+    trader_entity.Add<trader::AIBuildings>({{lumberyard1, lumberyard2}, 20});
+  }
+
+  void AddComposterComponents(worker::Entity& trader_entity) {
+    // set interested in Food and Fertilizer
+    improbable::ComponentSetInterest_QueryConstraint market_constraint;
+    market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
+    improbable::ComponentSetInterest_Query food_query;
+    improbable::ComponentSetInterest_Query fertilizer_query;
+    food_query.set_constraint(market_constraint).set_result_component_id({3010});
+    fertilizer_query.set_constraint(market_constraint).set_result_component_id({3012});
+
+    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, fertilizer_query};
+    improbable::ComponentSetInterest all_markets_interest;
+    all_markets_interest.set_queries(const_queries);
+    trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+
+    // Create production rules
+    // 1 food  = 1 fert (50% succeed chance)
+    trader::Building composter1 = {{{ToSchemaCommodity(known_commodities["fertilizer"]), 1, 0.5}},
+                              {{ToSchemaCommodity(known_commodities["food"]), 1, 1}},
+                              1,
+                              "AIComposter1", false};
+
+    trader_entity.Add<trader::AIBuildings>({{composter1}, 20});
+  }
+
+  void AddMinerComponents(worker::Entity& trader_entity) {
+    // set interested in Food and Tools
+    improbable::ComponentSetInterest_QueryConstraint market_constraint;
+    market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
+    improbable::ComponentSetInterest_Query food_query;
+    improbable::ComponentSetInterest_Query tools_query;
+    food_query.set_constraint(market_constraint).set_result_component_id({3010});
+    tools_query.set_constraint(market_constraint).set_result_component_id({3015});
+
+    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, tools_query};
+    improbable::ComponentSetInterest all_markets_interest;
+    all_markets_interest.set_queries(const_queries);
+    trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+
+    // Create production rules
+    // 1 food + 1 tools  = 4 ore
+    trader::Building mine1 = {{{ToSchemaCommodity(known_commodities["ore"]), 4, 1}},
+                                   {{ToSchemaCommodity(known_commodities["food"]), 1, 1},
+                                    {ToSchemaCommodity(known_commodities["tools"]), 1, 0.1}},
+                                   1,
+                                   "AIMine1", false};
+    // 1 food = 2 ore
+    trader::Building mine2 = {{{ToSchemaCommodity(known_commodities["ore"]), 2, 1}},
+                              {{ToSchemaCommodity(known_commodities["food"]), 1, 1}},
+                              2,
+                              "AIMine2", false};
+
+    trader_entity.Add<trader::AIBuildings>({{mine1, mine2}, 20});
+  }
+
+  void AddRefinerComponents(worker::Entity& trader_entity) {
+    // set interested in Food, Ore, Metal and Tools
+    improbable::ComponentSetInterest_QueryConstraint market_constraint;
+    market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
+    improbable::ComponentSetInterest_Query food_query, tools_query, ore_query, metal_query;
+    food_query.set_constraint(market_constraint).set_result_component_id({3010});
+    tools_query.set_constraint(market_constraint).set_result_component_id({3015});
+    ore_query.set_constraint(market_constraint).set_result_component_id({3013});
+    metal_query.set_constraint(market_constraint).set_result_component_id({3014});
+
+    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, tools_query, ore_query, metal_query};
+    improbable::ComponentSetInterest all_markets_interest;
+    all_markets_interest.set_queries(const_queries);
+    trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+
+    // Create production rules
+    // 1 food + 1 ore + 1 tools  = 1 metal [REPEATABLE]
+    trader::Building smelter1 = {{{ToSchemaCommodity(known_commodities["metal"]), 1, 1}},
+                              {{ToSchemaCommodity(known_commodities["food"]), 1, 1},
+                                  {ToSchemaCommodity(known_commodities["ore"]), 1, 1},
+                               {ToSchemaCommodity(known_commodities["tools"]), 1, 0.1}},
+                              1,
+                              "AISmelter1", true};
+    // 1 food + 2 ore = 2 metal
+    trader::Building smelter2 = {{{ToSchemaCommodity(known_commodities["metal"]), 2, 1}},
+                              {{ToSchemaCommodity(known_commodities["food"]), 1, 1},
+                               {ToSchemaCommodity(known_commodities["ore"]), 2, 1}},
+                              2,
+                              "AISmelter2", false};
+    // 1 food + 1 ore = 1 metal
+    trader::Building smelter3 = {{{ToSchemaCommodity(known_commodities["metal"]), 1, 1}},
+                                 {{ToSchemaCommodity(known_commodities["food"]), 1, 1},
+                                  {ToSchemaCommodity(known_commodities["ore"]), 1, 1}},
+                                 3,
+                                 "AISmelter3", false};
+    trader_entity.Add<trader::AIBuildings>({{smelter1, smelter2, smelter3}, 20});
+  }
+
+  void AddBlacksmithComponents(worker::Entity& trader_entity) {
+    // set interested in Food, Metal and Tools
+    improbable::ComponentSetInterest_QueryConstraint market_constraint;
+    market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
+    improbable::ComponentSetInterest_Query food_query, tools_query, metal_query;
+    food_query.set_constraint(market_constraint).set_result_component_id({3010});
+    tools_query.set_constraint(market_constraint).set_result_component_id({3015});
+    metal_query.set_constraint(market_constraint).set_result_component_id({3014});
+
+    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, tools_query, metal_query};
+    improbable::ComponentSetInterest all_markets_interest;
+    all_markets_interest.set_queries(const_queries);
+    trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+
+    // Create production rules
+    // 1 food + 1 metal  = 1 tools [REPEATABLE]
+    trader::Building forge1 = {{{ToSchemaCommodity(known_commodities["tools"]), 1, 1}},
+                                 {{ToSchemaCommodity(known_commodities["food"]), 1, 1},
+                                  {ToSchemaCommodity(known_commodities["metal"]), 1, 1}},
+                                 1,
+                                 "AIForge1", true};
+
+    trader_entity.Add<trader::AIBuildings>({{forge1}, 20});
   }
 };
 

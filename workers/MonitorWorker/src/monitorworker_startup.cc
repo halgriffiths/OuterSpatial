@@ -200,7 +200,7 @@ int main(int argc, char** argv) {
   };
   connection.SendCommandRequest<MakeBidOfferCommand>(10, offer, {10000});
   using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
-  messages::RegisterRequest reg_req{messages::AgentType::AI_TRADER};
+  messages::RegisterRequest reg_req{messages::AgentType::AI_TRADER, messages::AIRole::NONE};
   connection.SendCommandRequest<RegisterTraderCommand>(10, reg_req, {5000});
   // Reserve 2 ids
   auto metrics_start_time = to_unix_timestamp_ms(std::chrono::high_resolution_clock::now());

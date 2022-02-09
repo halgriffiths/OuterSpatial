@@ -4,6 +4,7 @@
 #include <improbable/view.h>
 #include <improbable/worker.h>
 
+#include "common/to_schema.h"
 #include "common/concurrency.h"
 #include "common/agent.h"
 #include "common/messages.h"
