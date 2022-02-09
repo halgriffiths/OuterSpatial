@@ -1,9 +1,32 @@
 package trader;
+
 import "messages.schema";
+import "commodity.schema";
 
 type InventoryItem {
   double size = 1;
   int32 quantity = 2;
+}
+
+type Production {
+  commodity.Commodity item = 1;
+  int32 quantity = 2;
+  double chance = 3;
+}
+
+type Consumption {
+  commodity.Commodity item = 1;
+  int32 quantity = 2;
+  double chance = 3;
+}
+
+type Building {
+  list<Production> produces = 1;
+  list<Consumption> requires = 2;
+  // The way priority works is that an AI will try to
+  // operate ALL the building(s) with the lowest priority score (1 = max priority)
+  int32 priority = 3;
+  string debug_name = 4;
 }
 
 component Metadata {
@@ -27,16 +50,10 @@ component Inventory {
   int32 capacity = 8;
 }
 
-component Buildings {
+component AIBuildings {
   id = 4002;
-  int32 farms = 1;
-  int32 logging_camps = 2;
-  int32 composters = 3;
-  int32 mines = 4;
-  int32 smelters = 5;
-  int32 factories = 6;
-
-  double idle_tax = 7;
+  list<Building> buildings = 1;
+  double idle_tax = 2;
 }
 
 component ProduceCommandComponent {
@@ -46,10 +63,10 @@ component ProduceCommandComponent {
 
 component_set ServerTraderComponentSet {
   id = 4004;
-  components = [Inventory, ProduceCommandComponent];
+  components = [Inventory, ProduceCommandComponent, AIBuildings];
 }
 
 component_set ClientTraderComponentSet {
   id = 4005;
-  components = [Buildings, Metadata];
+  components = [Metadata];
 }

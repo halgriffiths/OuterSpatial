@@ -23,7 +23,7 @@ using ComponentRegistry =
         sample::LoginListenerSet,
         sample::PositionSet,
         trader::Metadata,
-        trader::Buildings,
+        trader::AIBuildings,
         market::RegisterCommandComponent,
         market::MakeOfferCommandComponent,
         improbable::Position,

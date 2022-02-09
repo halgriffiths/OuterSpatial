@@ -34,6 +34,7 @@ using ComponentRegistry =
         market::MakeOfferCommandComponent,
         trader::Inventory,
         trader::ProduceCommandComponent,
+        trader::AIBuildings,
         sample::LoginListenerSet,
         sample::PositionSet,
         improbable::Interest,

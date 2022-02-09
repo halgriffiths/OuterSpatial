@@ -21,6 +21,11 @@
 
 #include <thread>
 
+namespace {
+  commodity::Commodity ToSchemaCommodity(Commodity& comm) {
+    return {comm.name, comm.size, comm.market_component_id};
+  }
+}
 namespace ah {
   enum RegisterProgress {
     NONE,
@@ -869,6 +874,7 @@ private:
             CreateMonitorEntity(entity_id);
             break;
           case messages::AgentType::AI_TRADER:
+            CreateAITraderEntity(entity_id);
             break;
           case messages::AgentType::HUMAN_TRADER:
             break;
@@ -903,17 +909,14 @@ private:
     worker::Entity monitor_entity;
 
     // Market component IDs start at 3010 and increment to 3015
-    uint market_id;
     std::vector<improbable::ComponentSetInterest_Query> all_queries;
     for (auto& good : known_commodities) {
-      market_id = good.second.market_component_id;
       improbable::ComponentSetInterest_QueryConstraint my_constraint;
-      my_constraint.set_component_constraint({market_id});
+      my_constraint.set_component_constraint({3001}); // only markets have this MakeOfferCommandComponent
       improbable::ComponentSetInterest_Query my_query;
       my_query.set_constraint(my_constraint);
 
-      my_query.set_result_component_id({market_id});
-      market_id++;
+      my_query.set_result_component_id({static_cast<unsigned int>(good.second.market_component_id)});
       all_queries.push_back(my_query);
     }
     worker::List<improbable::ComponentSetInterest_Query> const_queries;
@@ -923,11 +926,58 @@ private:
     all_markets_interest.set_queries(const_queries);
 
     monitor_entity.Add<improbable::Metadata>({{"MonitorEntity"}});
-    monitor_entity.Add<improbable::Position>({{3, 0, 0}});
+    monitor_entity.Add<improbable::Position>({{3, static_cast<double>(monitor_entity_id), 0}});
     monitor_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
 
     monitor_entity.Add<improbable::AuthorityDelegation>({{{50, monitor_entity_id}}});
     connection.SendCreateEntityRequest(monitor_entity, monitor_entity_id, {});
+  }
+
+  void CreateAITraderEntity(worker::EntityId trader_entity_id) {
+    worker::Entity trader_entity;
+
+    // EXAMPLE: Create Farmer
+    {
+      // set interested in Food, Wood and Fertilizer
+      improbable::ComponentSetInterest_QueryConstraint market_constraint;
+      market_constraint.set_component_constraint(
+          {3001});  // only markets have this MakeOfferCommandComponent
+
+      improbable::ComponentSetInterest_Query food_query;
+      improbable::ComponentSetInterest_Query wood_query;
+      improbable::ComponentSetInterest_Query fertilizer_query;
+      food_query.set_constraint(market_constraint).set_result_component_id({3010});
+      wood_query.set_constraint(market_constraint).set_result_component_id({3011});
+      fertilizer_query.set_constraint(market_constraint).set_result_component_id({3012});
+
+      worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, wood_query,
+                                                                            fertilizer_query};
+      improbable::ComponentSetInterest all_markets_interest;
+      all_markets_interest.set_queries(const_queries);
+      trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+    }
+    {
+      // Create production rules
+      // 1 fert + 1 tool (10% break change) + 1 wood = 6 food
+      trader::Building farm1 = {{{ToSchemaCommodity(known_commodities["food"]), 6, 1.0}},
+                                {{ToSchemaCommodity(known_commodities["fertilizer"]), 1, 1.0},
+                                 {ToSchemaCommodity(known_commodities["tools"]), 1, 0.1},
+                                 {ToSchemaCommodity(known_commodities["wood"]), 1, 1}},
+                                1,
+                                "AIFarm1"};
+      // 1 fert + 1 wood = 6 food
+      trader::Building farm2 = {{{ToSchemaCommodity(known_commodities["food"]), 3, 1.0}},
+                                {{ToSchemaCommodity(known_commodities["fertilizer"]), 1, 1.0},
+                                 {ToSchemaCommodity(known_commodities["wood"]), 1, 1}},
+                                2,
+                                "AIFarm2"};
+      trader_entity.Add<trader::AIBuildings>({{farm1, farm2}, 20});
+    }
+    trader_entity.Add<improbable::Metadata>({{"AITraderEntity"}});
+    trader_entity.Add<improbable::Position>({{5, static_cast<double>(trader_entity_id), 0}});
+
+    trader_entity.Add<improbable::AuthorityDelegation>({{{50, trader_entity_id}}});
+    connection.SendCreateEntityRequest(trader_entity, trader_entity_id, {});
   }
 };
 
