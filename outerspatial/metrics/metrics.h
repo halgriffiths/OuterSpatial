@@ -33,9 +33,13 @@ namespace {
 
 class LocalMetrics {
 public:
+    std::map<std::string, int> demographics = {};
     std::vector<std::string> tracked_goods;
     History local_history = {};
     ah::RegisterProgress progress = ah::NONE;
+
+    int num_deaths = 0;
+    int average_age_ticks = 0;
 private:
     friend PlayerTrader;
 
@@ -79,11 +83,11 @@ private:
           std::cout << "Good " << good << " not found in local history\n";
         }
       }
+      std::cout << "Total deaths (average age): " << num_deaths << average_age_ticks << std::endl;
     }
 
   void MakeCallbacks() {
     using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
-
     view.OnCommandResponse<RegisterTraderCommand>(
         [&](const worker::CommandResponseOp<RegisterTraderCommand>& op) {
             if (op.StatusCode != worker::StatusCode::kSuccess || !op.Response->accepted()) {
@@ -96,6 +100,20 @@ private:
               local_history.initialise(commodity.name());
             }
             initialised = true;
+        });
+    view.OnComponentUpdate<market::DemographicInfo>(
+        [&](const worker::ComponentUpdateOp<market::DemographicInfo >& op) {
+          market::DemographicInfo::Update update = op.Update;
+          for (auto& demo : *update.role_counts()) {
+            std::string role = RoleToString(demo.first);
+            demographics[role] = demo.second;
+          }
+          if (update.total_deaths()){
+            num_deaths = *update.total_deaths();
+          }
+          if (update.average_age_ticks()) {
+            average_age_ticks = *update.average_age_ticks();
+          }
         });
     view.OnComponentUpdate<market::FoodMarket>(
         [&](const worker::ComponentUpdateOp<market::FoodMarket >& op) {

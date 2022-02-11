@@ -226,13 +226,6 @@ public:
         auto msg = Message(id).AddRegisterResponse(RegisterResponse(id, true));
         SendMessage(*msg, requested_id);
     }
-    void ProcessShutdownNotify(Message& message) {
-        demographics[message.shutdown_notify->class_name] -= 1;
-        num_deaths += 1;
-        total_age += message.shutdown_notify->age_at_death;
-        logger.Log(Log::INFO, "Deregistered trader "+std::to_string(message.sender_id));
-        known_traders.erase(message.sender_id);
-    }
 
   template <class Tmarket>
   void UpdatePriceInfoComponent(const std::string& commodity) {
@@ -373,6 +366,12 @@ public:
       UpdatePriceInfoComponent<market::ToolsMarket>("tools");
 
     }
+
+    bool TickWorkerProduction(const worker::CommandRequestOp<market::RequestProductionComponent::Commands::RequestProduction>& op) {
+        bool bankrupt = false;
+
+        return bankrupt;
+    };
 private:
     // SPATIALOS CONCEPTS
     bool ConstructInitialAuctionHouseEntity(worker::EntityId AH_id) {
@@ -387,6 +386,10 @@ private:
       AH_entity.Add<improbable::AuthorityDelegation>({{{3020, 3}}});
       AH_entity.Add<market::RegisterCommandComponent>({});
       AH_entity.Add<market::MakeOfferCommandComponent>({});
+      AH_entity.Add<market::RequestShutdownComponent>({});
+      AH_entity.Add<market::DemographicInfo>({{},
+                                              0,
+                                              0.0});
       AH_entity.Add<market::FoodMarket>({{{
                                               "food",
                                               0.5,
@@ -473,6 +476,29 @@ private:
       using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
       using MakeBidOfferCommand = market::MakeOfferCommandComponent::Commands::MakeBidOffer;
       using MakeAskOfferCommand = market::MakeOfferCommandComponent::Commands::MakeAskOffer;
+      using RequestShutdownCommand = market::RequestShutdownComponent::Commands::RequestShutdown;
+      using RequestProductionCommand = market::RequestProductionComponent::Commands::RequestProduction;
+      view.OnCommandRequest<RequestProductionCommand>(
+          [&](const worker::CommandRequestOp<RequestProductionCommand>& op) {
+            connection.SendCommandResponse<RequestProductionCommand>(op.RequestId, {TickWorkerProduction(op)});
+          });
+      view.OnCommandRequest<RequestShutdownCommand>(
+          [&](const worker::CommandRequestOp<RequestShutdownCommand>& op) {
+            worker::EntityId entity_id = op.Request.entity_id();
+            std::string role = RoleToString(op.Request.role());
+            int age_ticks = op.Request.age_ticks();
+            demographics[role] -= 1;
+            num_deaths += 1;
+            total_age += age_ticks;
+
+            logger.Log(Log::INFO, "Deregistered trader "+std::to_string(entity_id));
+            known_traders.erase(entity_id);
+
+            connection.SendCommandResponse<RequestShutdownCommand>(op.RequestId, {true});
+
+            // TODO: Delete entity as well (will there be a timing issue?)
+            //connection.SendDeleteEntityRequest(entity_id);
+          });
       view.OnCommandRequest<RegisterTraderCommand>(
           [&](const worker::CommandRequestOp<RegisterTraderCommand>& op) {
             std::string req_type = "unknown";
@@ -486,7 +512,6 @@ private:
             connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
                                       "Received register request.\nCallerWorkerEntityId: " + std::to_string(op.CallerWorkerEntityId)
                                       + " for new trader of type: " + req_type);
-
 
           bool result = RegisterNewAgent(op);
           if (!result) {
@@ -514,6 +539,27 @@ private:
             bid_book_mutex.lock();
             bid_book[op.Request.good()].push_back({bid, result});
             bid_book_mutex.unlock();
+
+            connection.SendCommandResponse<MakeBidOfferCommand>(op.RequestId, {true});
+          });
+      view.OnCommandRequest<MakeAskOfferCommand>(
+          [&](const worker::CommandRequestOp<MakeAskOfferCommand>& op) {
+            std::cout << "Bid Offer received from #" << op.EntityId << "/" << op.Request.sender_id() <<  std::endl;
+            std::cout << op.Request.good() << ": " << op.Request.quantity() << "@" << op.Request.unit_price() << std::endl;
+
+            AskOffer ask = {op.RequestId,
+                            static_cast<int>(op.Request.sender_id()),
+                            op.Request.good(),
+                            op.Request.quantity(),
+                            op.Request.unit_price(),
+                            op.Request.expiry_time()};
+            AskResult result = {static_cast<int>(op.Request.sender_id()),
+                                op.Request.good()};
+            ask_book_mutex.lock();
+            ask_book[op.Request.good()].push_back({ask, result});
+            ask_book_mutex.unlock();
+
+            connection.SendCommandResponse<MakeAskOfferCommand>(op.RequestId, {true});
           });
     }
     // Transaction functions
@@ -915,13 +961,27 @@ private:
     std::vector<improbable::ComponentSetInterest_Query> all_queries;
     for (auto& good : known_commodities) {
       improbable::ComponentSetInterest_QueryConstraint my_constraint;
-      my_constraint.set_component_constraint({3001}); // only markets have this MakeOfferCommandComponent
+      my_constraint.set_component_constraint(
+          {3001});  // only markets have this MakeOfferCommandComponent
       improbable::ComponentSetInterest_Query my_query;
       my_query.set_constraint(my_constraint);
 
-      my_query.set_result_component_id({static_cast<unsigned int>(good.second.market_component_id)});
+      my_query.set_result_component_id(
+          {static_cast<unsigned int>(good.second.market_component_id)});
       all_queries.push_back(my_query);
     }
+    {
+      // Also have interest in Demographics component
+      improbable::ComponentSetInterest_QueryConstraint my_constraint;
+      my_constraint.set_component_constraint(
+          {3016});  // only markets have this MakeOfferCommandComponent
+      improbable::ComponentSetInterest_Query my_query;
+      my_query.set_constraint(my_constraint);
+
+      my_query.set_result_component_id({3016});  // DemographicInfo component Id
+      all_queries.push_back(my_query);
+    }
+
     worker::List<improbable::ComponentSetInterest_Query> const_queries;
     const_queries.insert(const_queries.begin(), all_queries.begin(), all_queries.end());
 

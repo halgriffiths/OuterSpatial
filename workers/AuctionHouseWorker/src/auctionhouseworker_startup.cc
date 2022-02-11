@@ -30,8 +30,11 @@ using ComponentRegistry =
         market::MetalMarket,
         market::OreMarket,
         market::ToolsMarket,
+        market::DemographicInfo,
         market::RegisterCommandComponent,
         market::MakeOfferCommandComponent,
+        market::RequestShutdownComponent,
+        market::RequestProductionComponent,
         trader::Inventory,
         trader::ProduceCommandComponent,
         trader::AIBuildings,
@@ -190,7 +193,7 @@ int main(int argc, char** argv) {
 
   connection.SendCommandRequest<AssignPartitionCommand>(
       connection.GetWorkerEntityId(), {auctionhousePartitionId}, /* default timeout */ {});
-  auto AH_ptr = std::make_shared<AuctionHouse>(connection, view, 10, Log::DEBUG);
+  auto AH_ptr = std::make_shared<AuctionHouse>(connection, view, 10, Log::INFO);
   double elapsed_time = 0.0;
   auto last_tick_time = std::chrono::steady_clock::now();
 

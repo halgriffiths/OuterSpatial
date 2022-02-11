@@ -82,6 +82,25 @@ type RegisterResponse {
   AIRole assigned_role = 4;
 }
 
+type ShutdownRequest {
+  int64 entity_id = 1;
+  AIRole role = 2;
+  double age_ms = 3;
+  int64 age_ticks = 4;
+}
+
+type ShutdownResponse {
+  bool accepted = 1;
+}
+
+type EmptyMessage {
+  bool ack = 1; //not sure if an empty type is allowed so we have this pointless field
+}
+
+type ProductionResponse {
+  bool bankrupt = 1;
+}
+
 type ProduceCommandRequest {
   EntityId sender_id = 1;
 }

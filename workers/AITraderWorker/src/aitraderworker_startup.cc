@@ -19,16 +19,31 @@
 // This keeps track of all components and component sets that this worker uses.
 // Used to make a worker::ComponentRegistry.
 using ComponentRegistry =
-    worker::Schema<
-        sample::LoginListenerSet,
-        sample::PositionSet,
-        trader::Metadata,
-        trader::AIBuildings,
-        market::RegisterCommandComponent,
-        market::MakeOfferCommandComponent,
-        improbable::Position,
-        improbable::restricted::Worker,
-        improbable::restricted::Partition>;
+worker::Schema<
+    market::MetalMarket,
+    market::FoodMarket,
+    market::FertilizerMarket,
+    market::WoodMarket,
+    market::MetalMarket,
+    market::OreMarket,
+    market::ToolsMarket,
+    market::RegisterCommandComponent,
+    market::MakeOfferCommandComponent,
+    market::RequestShutdownComponent,
+    market::RequestProductionComponent,
+    market::DemographicInfo,
+    trader::Inventory,
+    trader::ProduceCommandComponent,
+    trader::AIBuildings,
+    sample::LoginListenerSet,
+    sample::PositionSet,
+    improbable::Interest,
+    improbable::Position,
+    improbable::Metadata,
+    improbable::Persistence,
+    improbable::AuthorityDelegation,
+    improbable::restricted::Worker,
+    improbable::restricted::Partition>;
 
 // Constants and parameters
 const int ErrorExitStatus = 1;

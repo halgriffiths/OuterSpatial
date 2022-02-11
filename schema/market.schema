@@ -26,10 +26,21 @@ component RegisterCommandComponent {
   id = 3000;
   command messages.RegisterResponse register_command(messages.RegisterRequest);
 }
+
 component MakeOfferCommandComponent {
   id = 3001;
-  command messages.BidResult make_bid_offer(messages.BidOffer);
-  command messages.AskResult make_ask_offer(messages.AskOffer);
+  command messages.EmptyMessage make_bid_offer(messages.BidOffer);
+  command messages.EmptyMessage make_ask_offer(messages.AskOffer);
+}
+
+component RequestShutdownComponent {
+  id = 3002;
+  command messages.EmptyMessage request_shutdown(messages.ShutdownRequest);
+}
+
+component RequestProductionComponent {
+  id = 3003;
+  command messages.ProductionResponse request_production(messages.EmptyMessage);
 }
 
 component FoodMarket {
@@ -62,7 +73,14 @@ component ToolsMarket {
   MarketListing listing = 1;
 }
 
+component DemographicInfo {
+  id = 3016;
+  map<messages.AIRole, int32> role_counts = 1;
+  int32 total_deaths = 2;
+  double average_age_ticks = 3;
+}
+
 component_set ServerMarketComponentSet {
   id = 3020;
-  components = [RegisterCommandComponent, MakeOfferCommandComponent, FoodMarket, WoodMarket, FertilizerMarket, OreMarket, MetalMarket, ToolsMarket];
+  components = [RegisterCommandComponent, MakeOfferCommandComponent, RequestProductionComponent, RequestShutdownComponent, DemographicInfo, FoodMarket, WoodMarket, FertilizerMarket, OreMarket, MetalMarket, ToolsMarket];
 }

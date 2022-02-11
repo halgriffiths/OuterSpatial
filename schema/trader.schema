@@ -62,6 +62,12 @@ component ProduceCommandComponent {
   command messages.ProduceCommandResponse produce_command(messages.ProduceCommandRequest);
 }
 
+component ReportOfferResultComponent {
+  id = 4010;
+  command messages.EmptyMessage report_bid_offer(messages.BidResult);
+  command messages.EmptyMessage report_ask_offer(messages.AskResult);
+}
+
 component_set ServerTraderComponentSet {
   id = 4004;
   components = [Inventory, ProduceCommandComponent, AIBuildings];
@@ -69,5 +75,5 @@ component_set ServerTraderComponentSet {
 
 component_set ClientTraderComponentSet {
   id = 4005;
-  components = [Metadata];
+  components = [Metadata, ReportOfferResultComponent];
 }
