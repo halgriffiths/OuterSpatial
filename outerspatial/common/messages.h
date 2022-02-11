@@ -13,6 +13,34 @@
 
 class Trader;
 
+std::string RoleToString(messages::AIRole role) {
+  switch (role) {
+  case messages::AIRole::HUMAN:
+    return "human";
+    break;
+  case messages::AIRole::FARMER:
+    return "farmer";
+    break;
+  case messages::AIRole::WOODCUTTER:
+    return "woodcutter";
+    break;
+  case messages::AIRole::COMPOSTER:
+    return "composter";
+    break;
+  case messages::AIRole::MINER:
+    return "miner";
+    break;
+  case messages::AIRole::REFINER:
+    return "refiner";
+    break;
+  case messages::AIRole::BLACKSMITH:
+    return "blacksmith";
+    break;
+  default:
+    return "unknown";
+  }
+}
+
 namespace Msg {
     enum MessageType {
         EMPTY,
