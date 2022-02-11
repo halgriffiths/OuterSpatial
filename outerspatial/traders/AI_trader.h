@@ -101,8 +101,7 @@ public:
     }
 
     ~AITrader() {
-        logger.Log(Log::DEBUG, "Destroying AI trader");
-        ShutdownMessageThread();
+        logger->Log(Log::DEBUG, "Destroying AI trader");
         _inventory.inventory.clear();
         auction_house.reset();
         logic.reset();
@@ -135,9 +134,6 @@ public:
     void Shutdown();
     void Tick();
     void TickOnce();
-    void MessageLoop();
-
-
 
     int GetIdeal(const std::string& name);
     int Query(const std::string& name);
@@ -146,9 +142,6 @@ public:
     double GetIdleTax() { return IDLE_TAX;};
     double QueryMoney() { return money;};
 protected:
-    // EXTERNAL QUERIES
-    bool HasMoney(double quantity) override;
-    bool HasCommodity(const std::string& commodity, int quantity) override;
 
     // EXTERNAL SETTERS (i.e. for auction house & role only)
     double TryTakeMoney(double quantity, bool atomic) override;
@@ -159,61 +152,6 @@ protected:
     int TryAddCommodity(const std::string& commodity, int quantity, std::optional<double> unit_price, bool atomic) override;
 };
 
-void AITrader::FlushOutbox() {
-        logger.Log(Log::DEBUG, "Flushing outbox");
-        auto outgoing = outbox.pop();
-        int num_processed = 0;
-        while (outgoing && num_processed < MAX_PROCESSED_MESSAGES_PER_FLUSH) {
-            // Trader can currently only talk to auction houses (not other traders)
-            if (outgoing->first != auction_house_id) {
-                logger.Log(Log::ERROR, "Failed to send message, unknown recipient " + std::to_string(outgoing->first));
-            } else {
-                logger.LogSent(outgoing->first, Log::DEBUG, outgoing->second.ToString());
-                auto res = auction_house.lock();
-                if (res) {
-                    res->ReceiveMessage(std::move(outgoing->second));
-                } else {
-                    queue_active = false;
-                    destroyed = true;
-                    return;
-                }
-            }
-            num_processed++;
-            outgoing = outbox.pop();
-        }
-    if (num_processed == MAX_PROCESSED_MESSAGES_PER_FLUSH) {
-        logger.Log(Log::WARN, "Outbox not fully flushed");
-    }
-    logger.Log(Log::DEBUG, "Flush finished");
-}
-void AITrader::FlushInbox() {
-    logger.Log(Log::DEBUG, "Flushing inbox");
-    auto incoming_message = inbox.pop();
-    int num_processed = 0;
-    while (incoming_message && num_processed < MAX_PROCESSED_MESSAGES_PER_FLUSH) {
-        logger.LogReceived(incoming_message->sender_id, Log::INFO, incoming_message->ToString());
-        if (incoming_message->GetType() == Msg::EMPTY) {
-            //no-op
-        } else if (incoming_message->GetType() == Msg::BID_RESULT) {
-            ProcessBidResult(*incoming_message);
-        } else if (incoming_message->GetType() == Msg::ASK_RESULT) {
-            ProcessAskResult(*incoming_message);
-        } else if (incoming_message->GetType() == Msg::REGISTER_RESPONSE) {
-            ProcessRegistrationResponse(*incoming_message);
-        } else if (incoming_message->GetType() == Msg::SHUTDOWN_COMMAND) {
-            destroyed = true;
-            queue_active = false;
-        } else {
-            logger.Log(Log::ERROR, "Unknown/unsupported message type");
-        }
-        num_processed++;
-        incoming_message = inbox.pop();
-    }
-    if (num_processed == MAX_PROCESSED_MESSAGES_PER_FLUSH) {
-        logger.Log(Log::WARN, "Inbox not fully flushed");
-    }
-    logger.Log(Log::DEBUG, "Flush finished");
-}
 void AITrader::ProcessAskResult(Message& message) {
     UpdatePriceModelFromAsk(*message.ask_result);
 }
@@ -230,9 +168,6 @@ void AITrader::ProcessRegistrationResponse(Message& message) {
     }
 }
 
-bool AITrader::HasMoney(double quantity) {
-    return (money >= quantity);
-}
 double AITrader::TryTakeMoney(double quantity, bool atomic) {
     double amount_transferred;
     if (!atomic) {
@@ -258,10 +193,6 @@ void AITrader::AddMoney(double quantity) {
     money += quantity;
 }
 
-bool AITrader::HasCommodity(const std::string& commodity, int quantity) {
-    auto stored = _inventory.Query(commodity);
-    return (stored >= quantity);
-}
 int AITrader::TryTakeCommodity(const std::string& commodity, int quantity, std::optional<double> unit_price, bool atomic) {
     auto comm = _inventory.GetItem(commodity);
     if (!comm) {
@@ -464,15 +395,6 @@ std::pair<double, double> AITrader::ObserveTradingRange(const std::string& commo
 }
 
 // Misc
-void AITrader::ShutdownMessageThread() {
-    logger.Log(Log::INFO, "Shutting down message thread...");
-    queue_active = false;
-    if (message_thread.joinable()) {
-        message_thread.join();
-    }
-    logger.Log(Log::INFO, "Message thread shutdown");
-}
-
 void AITrader::Shutdown() {
     auto res = auction_house.lock();
     if (res) {
@@ -538,16 +460,6 @@ void AITrader::TickOnce() {
     }
 }
 
-void AITrader::MessageLoop() {
-    while (true) {
-        if (!queue_active) {
-            return;
-        }
-        FlushInbox();
-        FlushOutbox();
-        std::this_thread::sleep_for(std::chrono::milliseconds{1});
-    }
-}
 
 bool Role::Random(double chance) {
     if (chance >= 1) return true;

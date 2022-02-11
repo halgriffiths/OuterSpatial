@@ -69,12 +69,10 @@ public:
         , logger(FileLogger(verbosity, unique_name)) {
         ConstructInitialAuctionHouseEntity(auction_house_id);
         MakeCallbacks();
-        message_thread = std::thread([this] { MessageLoop(); });
     }
 
     ~AuctionHouse() override {
         logger.Log(Log::DEBUG, "Destroying auction house");
-        ShutdownMessageThread();
         known_traders.clear();
     }
     int GetNumTraders() const {
@@ -85,84 +83,14 @@ public:
         return {(num_deaths > 0) ? total_age / num_deaths : 0, demographics};
     }
 
-    void MessageLoop() {
-        while (true) {
-            if (!queue_active) {
-                return;
-            }
-            FlushInbox();
-            FlushOutbox();
-            std::this_thread::sleep_for(std::chrono::milliseconds{1});
-        }
-    }
-
     void Shutdown(){
         destroyed = true;
-    }
-
-    void ShutdownMessageThread() {
-        queue_active = false;
-        if (message_thread.joinable()) {
-            message_thread.join();
-        }
-        logger.Log(Log::INFO, "Message thread shutdown");
-        // Now message thread is gone we can safely send shutdown commands via the main thread
-        auto shutdown_command = Message(id).AddShutdownCommand({id});
-        for (auto& recipient : known_traders) {
-            known_traders[recipient.first]->ReceiveMessage(*shutdown_command);
-        }
     }
 
     void SendDirect(Message outgoing_message, std::shared_ptr<Agent>& recipient) {
         logger.Log(Log::WARN, "Using SendDirect method to reach unregistered trader");
         logger.LogSent(recipient->id, Log::DEBUG, outgoing_message.ToString());
         recipient->ReceiveMessage(std::move(outgoing_message));
-    }
-    void FlushOutbox() {
-        logger.Log(Log::DEBUG, "Flushing outbox");
-        auto outgoing = outbox.pop();
-        int num_processed = 0;
-        while (outgoing && num_processed < MAX_PROCESSED_MESSAGES_PER_FLUSH) {
-            if (known_traders.find(outgoing->first) == known_traders.end()) {
-                logger.Log(Log::DEBUG, "Failed to send message, unknown recipient " + std::to_string(outgoing->first));
-            } else {
-                logger.LogSent(outgoing->first, Log::DEBUG, outgoing->second.ToString());
-                known_traders[outgoing->first]->ReceiveMessage(std::move(outgoing->second));
-            }
-            num_processed++;
-            outgoing = outbox.pop();
-        }
-        if (num_processed == MAX_PROCESSED_MESSAGES_PER_FLUSH) {
-            logger.Log(Log::WARN, "Outbox not fully flushed (tick "+std::to_string(ticks)+", " + std::to_string(inbox.size())+ " remaining)");
-        }
-        logger.Log(Log::DEBUG, "Flush finished (sent " + std::to_string(num_processed)+")");
-    }
-    void FlushInbox() {
-        logger.Log(Log::DEBUG, "Flushing inbox");
-        auto incoming_message = inbox.pop();
-        int num_processed = 0;
-        while (incoming_message && num_processed < MAX_PROCESSED_MESSAGES_PER_FLUSH) {
-            logger.LogReceived(incoming_message->sender_id, Log::DEBUG, incoming_message->ToString());
-            if (incoming_message->GetType() == Msg::EMPTY) {
-                //no-op
-            } else if (incoming_message->GetType() == Msg::BID_OFFER) {
-                ProcessBid(*incoming_message);
-            } else if (incoming_message->GetType() == Msg::ASK_OFFER) {
-                ProcessAsk(*incoming_message);
-            } else if (incoming_message->GetType() == Msg::REGISTER_REQUEST) {
-                ProcessRegistrationRequest(*incoming_message);
-            } else if (incoming_message->GetType() == Msg::SHUTDOWN_NOTIFY){
-                ProcessShutdownNotify(*incoming_message);
-            } else {
-                logger.Log(Log::ERROR, "Unknown/unsupported message type");
-            }
-            num_processed++;
-            incoming_message = inbox.pop();
-        }
-        if (num_processed == MAX_PROCESSED_MESSAGES_PER_FLUSH) {
-            logger.Log(Log::WARN, "Inbox not fully flushed (tick "+std::to_string(ticks)+", " + std::to_string(inbox.size())+ " remaining)");
-        }
-        logger.Log(Log::DEBUG, "Flush finished (received " + std::to_string(num_processed)+")");
     }
 
     // Message processing

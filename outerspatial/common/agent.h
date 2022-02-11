@@ -13,8 +13,6 @@ class AuctionHouse;
 // All an agent is is an entity with an id, capable of sending and receiving messages
 class Agent {
 protected:
-    SafeQueue<Message> inbox = {};
-    SafeQueue<std::pair<int, Message>> outbox = {}; //Message, recipient_id
     worker::Connection& connection;
     worker::View& view;
 public:
@@ -26,10 +24,10 @@ public:
       , id(agent_id) {};
     virtual ~Agent() = default;
     void ReceiveMessage(const Message incoming_message) {
-        inbox.push(incoming_message);
+        //TODO: Remove this stub (and this class?)
     }
     void SendMessage(Message& outgoing_message, int recipient) {
-        outbox.push({recipient,std::move(outgoing_message)});
+      //TODO: Remove this stub
     }
   protected:
     bool IsConnected() {
