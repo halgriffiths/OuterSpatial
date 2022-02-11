@@ -46,6 +46,14 @@ public:
     double min_cost; //minimum fair price for a single produced good
 };
 
+namespace {
+  enum TraderStatus {
+    UNINITIALISED = 0,
+    ACTIVE = 1,
+    PENDING_DESTRUCTION = 2,
+    DESTROYED = 3
+};
+}
 
 class AITrader : public Trader {
 private:
@@ -64,7 +72,6 @@ private:
 
     messages::AIRole role = messages::AIRole::NONE;
     Inventory _inventory;
-
     int auction_house_id = -1;
 
     std::map<std::string, std::vector<double>> observed_trading_range;
@@ -78,10 +85,10 @@ private:
     double money;
 
 public:
-    std::atomic<bool> destroyed = false;
+    std::atomic<TraderStatus> status = TraderStatus::UNINITIALISED;
 
     AITrader(worker::Connection& connection, worker::View& view, int auction_house_id, messages::AIRole role, int tick_time_ms, Log::LogLevel verbosity = Log::WARN)
-    : Trader(-1, "unregistered",  connection, view) //id is -1 until set by the SpatialOS Registration proceedure
+    : Trader(-1, "unregistered",  connection, view) //id is -1 until set by the SpatialOS Registration procedure
     , role(role)
     , unique_name(RoleToString(role))
     , auction_house_id(auction_house_id)
@@ -98,10 +105,25 @@ public:
     }
 
 private:
-    // MESSAGE PROCESSING
-    void FlushOutbox();
-    void FlushInbox();
+    void MakeCallbacks() override {
+      using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
+      using MakeBidOfferCommand = market::MakeOfferCommandComponent::Commands::MakeBidOffer;
+      using MakeAskOfferCommand = market::MakeOfferCommandComponent::Commands::MakeAskOffer;
+      using RequestShutdownCommand = market::RequestShutdownComponent::Commands::RequestShutdown;
+      using RequestProductionCommand = market::RequestProductionComponent::Commands::RequestProduction;
+      view.OnCommandResponse<RegisterTraderCommand>(
+          [&](const worker::CommandResponseOp<RegisterTraderCommand>& op) {
+            if (op.StatusCode != worker::StatusCode::kSuccess || !op.Response->accepted()) {
+              status = TraderStatus::PENDING_DESTRUCTION;
+              Shutdown();
+              return;
+            }
+            id = op.Response->entity_id();
+            status = ACTIVE;
+          });
+    }
 
+    // MESSAGE PROCESSING
     void ProcessBidResult(Message& message);
     void ProcessAskResult(Message& message);
     void ProcessRegistrationResponse(Message& message);
@@ -390,7 +412,7 @@ std::pair<double, double> AITrader::ObserveTradingRange(const std::string& commo
 void AITrader::Shutdown() {
     using RequestShutdownCommand = market::RequestShutdownComponent::Commands::RequestShutdown;
     connection.SendCommandRequest<RequestShutdownCommand>(auction_house_id, {id, role, 0, ticks}, {});
-    destroyed = true;
+    status = PENDING_DESTRUCTION;
     logger->Log(Log::INFO, class_name+std::to_string(id)+std::string(" destroyed."));
 }
 
@@ -402,9 +424,9 @@ void AITrader::Tick() {
     //Stagger starts
     std::this_thread::sleep_for(std::chrono::milliseconds{std::uniform_int_distribution<>(0, TICK_TIME_MS)(rng_gen)});
     logger->Log(Log::INFO, "Beginning tickloop");
-    while (!destroyed) {
+    while (status > UNINITIALISED) {
         auto t1 = std::chrono::high_resolution_clock::now();
-        if (ready) {
+        if (status == ACTIVE) {
             connection.SendCommandRequest<ProductionCommand>(auction_house_id, {true}, {});
             for (const auto &commodity : _inventory.inventory) {
                 GenerateOffers(commodity.first);
@@ -413,7 +435,7 @@ void AITrader::Tick() {
         if (money <= 0) {
             Shutdown();
         }
-        if (ready) {
+        if (status == ACTIVE) {
             ticks++;
         }
         std::chrono::duration<double, std::milli> elapsed_ms = std::chrono::high_resolution_clock::now() - t1;
@@ -427,22 +449,16 @@ void AITrader::Tick() {
 }
 
 void AITrader::TickOnce() {
-    if (destroyed) {
+    if (status != ACTIVE) {
         return;
     }
     using ProductionCommand = market::RequestProductionComponent::Commands::RequestProduction;
-    if (ready) {
-        connection.SendCommandRequest<ProductionCommand>(auction_house_id, {true}, {});
-        for (const auto& commodity : _inventory.inventory) {
-            GenerateOffers(commodity.first);
-        }
-    }
-    if (money <= 0) {
-        destroyed = true;
-        return;
-    }
-    if (ready){
-        ticks++;
+    if (status == ACTIVE) {
+      connection.SendCommandRequest<ProductionCommand>(auction_house_id, {true}, {});
+      for (const auto& commodity : _inventory.inventory) {
+        GenerateOffers(commodity.first);
+      }
+      ticks++;
     }
 }
 
