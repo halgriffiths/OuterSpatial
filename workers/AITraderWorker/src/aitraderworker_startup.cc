@@ -181,18 +181,14 @@ int main(int argc, char** argv) {
                                   "Worker with ID " + op.Data.worker_id() + " connected.");
       });
   // MY STUFF STARTS HERE
-  connection.SendCommandRequest<AssignPartitionCommand>(
-      connection.GetWorkerEntityId(), {AItraderPartitionId}, /* default timeout */ {});
+  int ah_id = 10;
+  using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
+  messages::RegisterRequest reg_req{messages::AgentType::AI_TRADER, messages::AIRole::NONE};
+  connection.SendCommandRequest<RegisterTraderCommand>(ah_id, reg_req, {5000});
 
-
-  double elapsed_time = 0.0;
-  auto last_tick_time = std::chrono::steady_clock::now();
+  std::make_shared<AITrader>(connection, view, ah_id, messages::AIRole::FARMER, 100, Log::INFO);
   while (is_connected) {
     view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
-    auto now = std::chrono::steady_clock::now();
-    elapsed_time += std::chrono::duration<double>(now - last_tick_time)
-                        .count();  // Amount of time since last tick, in seconds
-    last_tick_time = now;
   }
 
   return ErrorExitStatus;

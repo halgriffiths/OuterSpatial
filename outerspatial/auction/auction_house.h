@@ -295,10 +295,10 @@ public:
 
     }
 
-    bool TickWorkerProduction(const worker::CommandRequestOp<market::RequestProductionComponent::Commands::RequestProduction>& op) {
+    messages::ProductionResponse TickWorkerProduction(const worker::CommandRequestOp<market::RequestProductionComponent::Commands::RequestProduction>& op) {
         bool bankrupt = false;
-
-        return bankrupt;
+        ::worker::Map< std::string, std::int32_t> produced = {};
+        return {bankrupt, produced};
     };
 private:
     // SPATIALOS CONCEPTS
@@ -408,7 +408,7 @@ private:
       using RequestProductionCommand = market::RequestProductionComponent::Commands::RequestProduction;
       view.OnCommandRequest<RequestProductionCommand>(
           [&](const worker::CommandRequestOp<RequestProductionCommand>& op) {
-            connection.SendCommandResponse<RequestProductionCommand>(op.RequestId, {TickWorkerProduction(op)});
+            connection.SendCommandResponse<RequestProductionCommand>(op.RequestId, TickWorkerProduction(op));
           });
       view.OnCommandRequest<RequestShutdownCommand>(
           [&](const worker::CommandRequestOp<RequestShutdownCommand>& op) {

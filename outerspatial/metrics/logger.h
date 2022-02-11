@@ -26,7 +26,7 @@ class Logger {
 protected:
     std::string name;
 public:
-    const Log::LogLevel verbosity;
+    Log::LogLevel verbosity;
     Logger(Log::LogLevel verbosity, std::string name)
         : verbosity(verbosity)
         , name(name) {};
@@ -101,6 +101,10 @@ public:
         log_file = std::fopen (("/home/henry/OuterSpatial/outerspatial/logs/" + unique_name + "_log.txt").c_str(), "w");
         std::fwrite("# Log file\n", 1, 11, log_file);
     };
+    FileLogger(FileLogger& logger)
+      : Logger(logger.verbosity, logger.name) {
+      log_file = std::fopen (("/home/henry/OuterSpatial/outerspatial/logs/" + logger.name + "_log.txt").c_str(), "w");
+    }
 
     ~FileLogger() {
       std::fclose(log_file);

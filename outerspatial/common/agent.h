@@ -46,8 +46,22 @@ public:
         , class_name(std::move(name)){};
     ~Trader() override = default;
 
-    virtual bool HasMoney(double quantity) {return false;};
-    virtual bool HasCommodity(const std::string& commodity, int quantity) {return false;};
+    bool HasMoney(double quantity) {
+      auto inv = view.Entities[id].Get<trader::Inventory>();
+      if (inv) {
+        return (inv->cash() >= quantity);
+      }
+      return false;
+    };
+    bool HasCommodity(const std::string& commodity, int quantity) {
+      auto inv = view.Entities[id].Get<trader::Inventory>();
+      if (inv) {
+          auto inv_items = inv->inv();
+          // TODO Use find to check for missing items and make function const
+          return (inv_items[commodity].quantity() >= quantity);
+      }
+      return false;
+    };
 
     std::string GetClassName() {return class_name;};
 protected:

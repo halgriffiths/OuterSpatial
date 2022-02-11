@@ -37,9 +37,6 @@ public:
     std::vector<std::string> tracked_goods;
     History local_history = {};
     ah::RegisterProgress progress = ah::NONE;
-
-    int num_deaths = 0;
-    int average_age_ticks = 0;
 private:
     friend PlayerTrader;
 
@@ -76,14 +73,22 @@ private:
       }
       std::cout << "== SUMMARY ==" << std::endl;
       for (auto& good : tracked_goods) {
-        std::cout << "# " << good << std::endl;
+        std::cout << "# " << good;
         if (local_history.exists(good)) {
           std::cout << "Price (avg): " << local_history.prices.most_recent[good] << " (" << local_history.prices.t_average(good, -1) << ")" << std::endl;;
         } else {
           std::cout << "Good " << good << " not found in local history\n";
         }
       }
-      std::cout << "Total deaths (average age): " << num_deaths << average_age_ticks << std::endl;
+      auto data = view.Entities[auction_house_id].Get<market::DemographicInfo>();
+      if (data) {
+        for (auto& item : data->role_counts()) {
+          std::cout << "# " << RoleToString(item.first) << ": " << item.second;
+        }
+        double average_age = data->average_age_ticks();
+        int num_deaths = data->total_deaths();
+        std::cout << "Total deaths (average age): " << num_deaths << average_age << std::endl;
+      }
     }
 
   void MakeCallbacks() {
@@ -103,17 +108,12 @@ private:
         });
     view.OnComponentUpdate<market::DemographicInfo>(
         [&](const worker::ComponentUpdateOp<market::DemographicInfo >& op) {
-          market::DemographicInfo::Update update = op.Update;
-          for (auto& demo : *update.role_counts()) {
-            std::string role = RoleToString(demo.first);
-            demographics[role] = demo.second;
-          }
-          if (update.total_deaths()){
-            num_deaths = *update.total_deaths();
-          }
-          if (update.average_age_ticks()) {
-            average_age_ticks = *update.average_age_ticks();
-          }
+          // TODO: Store time series for graphing
+//          market::DemographicInfo::Update update = op.Update;
+//          for (auto& demo : *update.role_counts()) {
+//            std::string role = RoleToString(demo.first);
+//            demographics[role] = demo.second;
+//          }
         });
     view.OnComponentUpdate<market::FoodMarket>(
         [&](const worker::ComponentUpdateOp<market::FoodMarket >& op) {

@@ -40,15 +40,9 @@ component Metadata {
 component Inventory {
   id = 4001;
   double cash = 1;
-  InventoryItem food = 2;
-  InventoryItem wood = 3;
-  InventoryItem fertilizer = 4;
+  map<string, InventoryItem> inv = 2;
 
-  InventoryItem ore = 5;
-  InventoryItem metal = 6;
-  InventoryItem tools = 7;
-
-  int32 capacity = 8;
+  int32 capacity = 3;
 }
 
 component AIBuildings {
