@@ -305,7 +305,7 @@ struct ShutdownNotify {
             , age_at_death(age_at_death) {};
 
     std::string ToString() const {
-        return std::string("Shutdown notification received ("+class_name+", age "+std::to_string(age_at_death));
+        return std::string("RequestShutdown notification received ("+class_name+", age "+std::to_string(age_at_death));
     }
 };
 
@@ -315,7 +315,7 @@ struct ShutdownCommand {
             : sender_id(sender_id) {};
 
     std::string ToString() const {
-        return std::string("Shutdown command received");
+        return std::string("RequestShutdown command received");
     }
 };
 

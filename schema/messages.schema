@@ -54,7 +54,7 @@ type BidResult {
   double avg_price = 4;
 
   bool broker_fee_paid = 5;
-  TradeOutcome outcome = 6;
+  TradeOutcome outcome = 6; // TODO: Currently unused field. Either use it or lose it.
 }
 
 type AskResult {
@@ -100,6 +100,7 @@ type EmptyMessage {
 type ProductionResponse {
   bool bankrupt = 1;
   map<string, int32> production_result = 2;
+  map<string, int32> consumption_result = 3;
 }
 
 type ProduceCommandRequest {

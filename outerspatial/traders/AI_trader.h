@@ -71,7 +71,7 @@ private:
     bool ready = false;
 
     messages::AIRole role = messages::AIRole::NONE;
-    Inventory _inventory;
+    CommodityBeliefs commodity_beliefs;
     int auction_house_id = -1;
 
     std::map<std::string, std::vector<double>> observed_trading_range;
@@ -89,47 +89,26 @@ public:
 
     AITrader(worker::Connection& connection, worker::View& view, int auction_house_id, messages::AIRole role, int tick_time_ms, Log::LogLevel verbosity = Log::WARN)
     : Trader(-1, "unregistered",  connection, view) //id is -1 until set by the SpatialOS Registration procedure
-    , role(role)
     , unique_name(RoleToString(role))
-    , auction_house_id(auction_house_id)
     , TICK_TIME_MS(tick_time_ms)
+    , role(role)
+    , auction_house_id(auction_house_id)
     , money(0){
         //construct inv_inventory = Inventory(inv_capacity, starting_inv);
-        // MakeCallbacks
+      MakeCallbacks();
       logger = std::make_unique<FileLogger>(verbosity, unique_name);
     }
 
     ~AITrader() {
         logger->Log(Log::DEBUG, "Destroying AI trader");
-        _inventory.inventory.clear();
     }
 
 private:
-    void MakeCallbacks() override {
-      using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
-      using MakeBidOfferCommand = market::MakeOfferCommandComponent::Commands::MakeBidOffer;
-      using MakeAskOfferCommand = market::MakeOfferCommandComponent::Commands::MakeAskOffer;
-      using RequestShutdownCommand = market::RequestShutdownComponent::Commands::RequestShutdown;
-      using RequestProductionCommand = market::RequestProductionComponent::Commands::RequestProduction;
-      view.OnCommandResponse<RegisterTraderCommand>(
-          [&](const worker::CommandResponseOp<RegisterTraderCommand>& op) {
-            if (op.StatusCode != worker::StatusCode::kSuccess || !op.Response->accepted()) {
-              status = TraderStatus::PENDING_DESTRUCTION;
-              Shutdown();
-              return;
-            }
-            id = op.Response->entity_id();
-            status = ACTIVE;
-          });
-    }
+    void MakeCallbacks() override;
 
     // MESSAGE PROCESSING
-    void ProcessBidResult(Message& message);
-    void ProcessAskResult(Message& message);
-    void ProcessRegistrationResponse(Message& message);
-
-    void UpdatePriceModelFromBid(BidResult& result);
-    void UpdatePriceModelFromAsk(const AskResult& result);
+    void UpdatePriceModelFromProduction(worker::Map<std::basic_string<char>, int>& production,
+                                        worker::Map<std::basic_string<char>, int>& consumption);
 
     // INTERNAL LOGIC
     void GenerateOffers(const std::string& commodity);
@@ -143,7 +122,7 @@ private:
 
     void ShutdownMessageThread();
 public:
-    void Shutdown();
+    void RequestShutdown();
     void Tick();
     void TickOnce();
 
@@ -164,22 +143,79 @@ protected:
     int TryAddCommodity(const std::string& commodity, int quantity, std::optional<double> unit_price, bool atomic) override;
 };
 
-void AITrader::ProcessAskResult(Message& message) {
-    UpdatePriceModelFromAsk(*message.ask_result);
-}
-void AITrader::ProcessBidResult(Message& message) {
-    UpdatePriceModelFromBid(*message.bid_result);
-}
-void AITrader::ProcessRegistrationResponse(Message& message) {
-    if (message.register_response->accepted) {
-        ready = true;
-        logger->Log(Log::INFO, "Successfully registered with auction house");
-    } else {
-        logger->Log(Log::ERROR, "Failed to register with auction house");
-        Shutdown();
-    }
-}
+void AITrader::MakeCallbacks() {
+  using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
+  using ReportBidResultCommand = trader::ReportOfferResultComponent::Commands::ReportBidOffer;
+  using ReportAskResultCommand = trader::ReportOfferResultComponent::Commands::ReportAskOffer;
+  using RequestShutdownCommand = market::RequestShutdownComponent::Commands::RequestShutdown;
+  using RequestProductionCommand = market::RequestProductionComponent::Commands::RequestProduction;
+  view.OnCommandResponse<RegisterTraderCommand>(
+      [&](const worker::CommandResponseOp<RegisterTraderCommand>& op) {
+        if (op.StatusCode != worker::StatusCode::kSuccess || !op.Response->accepted()) {
+          status = TraderStatus::PENDING_DESTRUCTION;
+          RequestShutdown();
+          return;
+        }
+        id = op.Response->entity_id();
+        status = ACTIVE;
+      });
+  view.OnCommandRequest<ReportBidResultCommand>(
+      [&](const worker::CommandRequestOp<ReportBidResultCommand>& op) {
+        connection.SendCommandResponse<ReportBidResultCommand>(op.RequestId, {true});
+        auto commodity = op.Request.good();
+        auto bought_price = op.Request.avg_price();
+        auto quantity_traded= op.Request.quantity_bought();
+        // TODO: Mutex lock this?
+        for (int i = 0; i < quantity_traded; i++) {
+          observed_trading_range[commodity].push_back(bought_price);
+        }
+        while ((int) observed_trading_range[commodity].size() > internal_lookback) {
+          observed_trading_range[commodity].erase(observed_trading_range[commodity].begin());
+        }
+    });
+  view.OnCommandRequest<ReportAskResultCommand>(
+      [&](const worker::CommandRequestOp<ReportAskResultCommand>& op) {
+        connection.SendCommandResponse<ReportAskResultCommand>(op.RequestId, {true});
+        auto commodity = op.Request.good();
+        auto sold_price = op.Request.avg_price();
+        auto quantity_traded= op.Request.quantity_sold();
+        for (int i = 0; i < quantity_traded; i++) {
+          observed_trading_range[commodity].push_back(sold_price);
+        }
 
+        while ((int) observed_trading_range[commodity].size() > internal_lookback) {
+          observed_trading_range[commodity].erase(observed_trading_range[commodity].begin());
+        }
+      });
+  view.OnCommandResponse<RequestProductionCommand>(
+      [&](const worker::CommandResponseOp<RequestProductionCommand>& op) {
+        if (op.StatusCode == worker::StatusCode::kSuccess) {
+          if (op.Response->bankrupt()) {
+            messages::ShutdownRequest request = {id, role, 0, ticks};
+            connection.SendCommandRequest<RequestShutdownCommand>(auction_house_id, request, {});
+            status = PENDING_DESTRUCTION;
+            return;
+          }
+          auto production = op.Response->production_result();
+          auto consumption = op.Response->consumption_result();
+          UpdatePriceModelFromProduction(production, consumption);
+        }
+      });
+  view.OnCommandResponse<RequestShutdownCommand>(
+      [&](const worker::CommandResponseOp<RequestShutdownCommand>& op) {
+        if (op.StatusCode == worker::StatusCode::kSuccess && op.Response->ack()) {
+          status = DESTROYED;
+          return;
+        }
+      });
+}
+void AITrader::UpdatePriceModelFromProduction(worker::Map<std::basic_string<char>, int>& production,
+    worker::Map<std::basic_string<char>, int>& consumption) {
+    //For everything consumed, track_costs incremented by personal value
+
+    //For everything produced, split the tracked costs across and set to zero
+
+};
 double AITrader::TryTakeMoney(double quantity, bool atomic) {
     double amount_transferred;
     if (!atomic) {
@@ -205,85 +241,32 @@ void AITrader::AddMoney(double quantity) {
     money += quantity;
 }
 
-int AITrader::TryTakeCommodity(const std::string& commodity, int quantity, std::optional<double> unit_price, bool atomic) {
-    auto comm = _inventory.GetItem(commodity);
-    if (!comm) {
-        //item unknown, fail
-        logger->Log(Log::ERROR, "Tried to take unknown item "+commodity);
-        return 0;
-    }
-    int actual_transferred ;
-    auto stored = _inventory.Query(commodity);
-    if ( stored>= quantity) {
-        actual_transferred = quantity;
-    } else {
-        if (atomic) {
-            actual_transferred = 0;
-            logger->Log(Log::DEBUG, "Failed to take "+commodity+std::string(" x") + std::to_string(quantity));
-        } else {
-            actual_transferred = stored;
-        }
-    }
-    _inventory.TakeItem(commodity, actual_transferred, unit_price);
-    return actual_transferred;
-}
-int AITrader::TryAddCommodity(const std::string& commodity, int quantity, std::optional<double> unit_price, bool atomic) {
-    auto comm = _inventory.GetItem(commodity);
-    if (!comm) {
-        //item unknown, fail
-        logger->Log(Log::ERROR, "Tried to add unknown item "+commodity);
-        return 0;
-    }
-    int actual_transferred;
-    if (_inventory.GetEmptySpace() >= quantity*comm->size) {
-        actual_transferred = quantity;
-    } else {
-        if (atomic) {
-            actual_transferred = 0;
-            logger->Log(Log::DEBUG, "Failed to add "+commodity+std::string(" x") + std::to_string(quantity));
-        } else {
-            actual_transferred = std::floor(_inventory.GetEmptySpace()/comm->size);
-            //overproduced! Drop value of goods accordingly
-            int overproduction = quantity - actual_transferred;
-            _inventory.inventory[commodity].original_cost *= std::pow(1.3, -1*overproduction);
-        }
-    }
-    _inventory.AddItem(commodity, actual_transferred, unit_price);
-    return actual_transferred;
-}
 int AITrader::GetIdeal(const std::string& name) {
-    auto res = _inventory.GetItem(name);
-    if (!res) {
-        return 0;
-    }
-    return res->ideal_quantity;
+    return commodity_beliefs.GetIdeal(name);
 }
-int AITrader::Query(const std::string& name) { return _inventory.Query(name); }
-double AITrader::QueryCost(const std::string& name) { return _inventory.QueryCost(name); }
-
-// Trading functions
-void AITrader::UpdatePriceModelFromBid(BidResult& result) {
-    for (int i = 0; i < result.quantity_traded; i++) {
-        observed_trading_range[result.commodity].push_back(result.bought_price);
-    }
-
-    while (observed_trading_range[result.commodity].size() > internal_lookback) {
-        observed_trading_range[result.commodity].erase(observed_trading_range[result.commodity].begin());
-    }
-}
-void AITrader::UpdatePriceModelFromAsk(const AskResult& result) {
-
-    for (int i = 0; i < result.quantity_traded; i++) {
-        observed_trading_range[result.commodity].push_back(result.avg_price);
-    }
-
-    while (observed_trading_range[result.commodity].size() > internal_lookback) {
-        observed_trading_range[result.commodity].erase(observed_trading_range[result.commodity].begin());
-    }
+int AITrader::Query(const std::string& name) {
+  auto inv = view.Entities[id].Get<trader::Inventory>()->inv();
+  if (inv.count(name) != 1) {
+    return 0; // no entry found
+  }
+  return inv[name].quantity();
 }
 
+
+double AITrader::QueryCost(const std::string& name) {
+  return commodity_beliefs.GetCost(name);
+}
+
+int QuerySurplus(const std::string& commodity) {
+}
+int QueryShortage(const std::string& commodity) {
+}
+double QuerySpace() {
+}
+double QueryUnitSize(const std::string& commodity) {
+}
 void AITrader::GenerateOffers(const std::string& commodity) {
-    int surplus = _inventory.Surplus(commodity);
+    int surplus = QuerySurplus(commodity);
     if (surplus >= 1) {
 //        logger->Log(Log::DEBUG, "Considering ask for "+commodity + std::string(" - Current surplus = ") + std::to_string(surplus));
         auto offer = CreateAsk(commodity, 1);
@@ -292,24 +275,24 @@ void AITrader::GenerateOffers(const std::string& commodity) {
         }
     }
 
-    int shortage = _inventory.Shortage(commodity);
-    double space = _inventory.GetEmptySpace();
-    double unit_size = _inventory.GetSize(commodity);
+    int shortage = QueryShortage(commodity);
+    double space = QuerySpace();
+    double unit_size = QueryUnitSize(commodity);
 
 
     double fulfillment;
     if (class_name == "refiner" || class_name == "blacksmith") {
-        fulfillment = _inventory.Query(commodity) / (0.001 + _inventory.GetItem(commodity)->ideal_quantity);
+        fulfillment = Query(commodity) / (0.001 + GetIdeal(commodity));
         fulfillment = std::max(0.5, fulfillment);
     } else {
-        fulfillment = _inventory.Query(commodity) / (0.001 + _inventory.GetItem(commodity)->ideal_quantity);
+        fulfillment = Query(commodity) / (0.001 + GetIdeal(commodity));
     }
 
     if (fulfillment < 1 && space >= unit_size) {
         int max_limit = (shortage*unit_size <= space) ? shortage : (int) space/shortage;
         if (max_limit > 0)
         {
-            int min_limit = (_inventory.Query(commodity) == 0) ? 1 : 0;
+            int min_limit = ( Query(commodity) == 0) ? 1 : 0;
 //            logger->Log(Log::DEBUG, "Considering bid for "+commodity + std::string(" - Current shortage = ") + std::to_string(shortage));
 
             double desperation = 1;
@@ -326,15 +309,14 @@ void AITrader::GenerateOffers(const std::string& commodity) {
 BidOffer AITrader::CreateBid(const std::string& commodity, int min_limit, int max_limit, double desperation) {
     double fair_bid_price;
     //TODO: Get prices via spatialOS "view"
-//    auto res = auction_house.lock();
-//    if (res) {
-//        fair_bid_price = res->t_AverageHistoricalPrice(commodity, external_lookback);
-//    } else {
-//        destroyed = true;
-//        // quantity 0 BidOffers are never sent
-//        // (Yes this is hacky)
-//        return BidOffer(id, commodity, 0, -1, 0);
-//    }
+    auto price_info = ToPriceInfo(view, auction_house_id, commodity);
+    if (!price_info) {
+      RequestShutdown();
+        // quantity 0 BidOffers are never sent
+        // (Yes this is hacky)
+        return BidOffer(id, commodity, 0, -1, 0);
+    }
+    fair_bid_price = price_info->recent_price();
     //scale between price based on need
     double max_price = money;
     double min_price = MIN_PRICE;
@@ -352,16 +334,14 @@ AskOffer AITrader::CreateAsk(const std::string& commodity, int min_limit) {
     //AI agents offer a fair ask price - costs + 15% profit
     double market_price;
     double ask_price;
-    //TODO: Get prices via "view"
-//    auto res = auction_house.lock();
-//    if (res) {
-//        market_price = res->t_AverageHistoricalBuyPrice(commodity, external_lookback);
-//    } else {
-//        destroyed = true;
-//        // quantity 0 AskOffers are never sent
-//        // (Yes this is hacky)
-//        return AskOffer(id, commodity, 0, -1, 0);
-//    }
+    auto price_info = ToPriceInfo(view, auction_house_id, commodity);
+    if (!price_info) {
+      RequestShutdown();
+      // quantity 0 AskOffers are never sent
+      // (Yes this is hacky)
+      return AskOffer(id, commodity, 0, -1, 0);
+    }
+    market_price = price_info->recent_price();
     double fair_price = QueryCost(commodity) * 1.15;
 
     std::uniform_real_distribution<> random_price(fair_price, market_price);
@@ -385,12 +365,12 @@ int AITrader::DetermineBuyQuantity(const std::string& commodity, double avg_pric
     }
     double favorability = PositionInRange(avg_price, range.first, range.second);
     favorability = 1 - favorability; //do 1 - favorability to see how close we are to the low end
-    double amount_to_buy = favorability * _inventory.Shortage(commodity);//double
+    double amount_to_buy = favorability * QueryShortage(commodity);//double
 
     return std::ceil(amount_to_buy);
 }
 int AITrader::DetermineSaleQuantity(const std::string& commodity) {
-    return _inventory.Surplus(commodity); //Sell all surplus
+    return QuerySurplus(commodity); //Sell all surplus
 }
 
 std::pair<double, double> AITrader::ObserveTradingRange(const std::string& commodity, int window) {
@@ -409,7 +389,7 @@ std::pair<double, double> AITrader::ObserveTradingRange(const std::string& commo
 }
 
 // Misc
-void AITrader::Shutdown() {
+void AITrader::RequestShutdown() {
     using RequestShutdownCommand = market::RequestShutdownComponent::Commands::RequestShutdown;
     connection.SendCommandRequest<RequestShutdownCommand>(auction_house_id, {id, role, 0, ticks}, {});
     status = PENDING_DESTRUCTION;
@@ -428,12 +408,12 @@ void AITrader::Tick() {
         auto t1 = std::chrono::high_resolution_clock::now();
         if (status == ACTIVE) {
             connection.SendCommandRequest<ProductionCommand>(auction_house_id, {true}, {});
-            for (const auto &commodity : _inventory.inventory) {
+            for (const auto &commodity : commodity_beliefs.commodity_beliefs) {
                 GenerateOffers(commodity.first);
             }
         }
         if (money <= 0) {
-            Shutdown();
+          RequestShutdown();
         }
         if (status == ACTIVE) {
             ticks++;
@@ -455,13 +435,12 @@ void AITrader::TickOnce() {
     using ProductionCommand = market::RequestProductionComponent::Commands::RequestProduction;
     if (status == ACTIVE) {
       connection.SendCommandRequest<ProductionCommand>(auction_house_id, {true}, {});
-      for (const auto& commodity : _inventory.inventory) {
+      for (const auto& commodity : commodity_beliefs.commodity_beliefs) {
         GenerateOffers(commodity.first);
       }
       ticks++;
     }
 }
-
 
 bool Role::Random(double chance) {
     if (chance >= 1) return true;

@@ -10,6 +10,59 @@
 #include <algorithm>
 #include <unordered_set>
 
+// Cut-down version of Inventory with only metadata
+class CommodityBelief {
+public:
+    std::string name;
+    int ideal;
+    double cost;
+
+    CommodityBelief(std::string commodity_name, int ideal, double original_cost)
+    : name(std::move(commodity_name))
+    , ideal(ideal)
+    , cost(original_cost) {}
+};
+
+class CommodityBeliefs {
+public:
+  std::map<std::string, CommodityBelief> commodity_beliefs;
+  CommodityBeliefs() = default;
+
+  void InitializeBelief(std::string commodity, int ideal_quantity = 0, double original_cost = 0.0) {
+    commodity_beliefs[commodity] = CommodityBelief(commodity, ideal_quantity, original_cost);
+  }
+
+  void UpdateCostFromProduction(const std::string& name, int quantity, double unit_price) {
+    if (commodity_beliefs.count(name) != 1) {
+      return;// no entry found
+    }
+    double alpha = 0.2;
+    if (unit_price > 0) {
+      if (commodity_beliefs[name].cost == 0.0) {
+        commodity_beliefs[name].cost = unit_price;
+      }
+      for (int i = 0; i < quantity; i++) {
+        // update EWMA
+        commodity_beliefs[name].cost = alpha*unit_price + (1 - alpha)*commodity_beliefs[name].cost;
+      }
+    }
+  }
+
+  double GetCost(const std::string& name) const {
+    if (commodity_beliefs.count(name) != 1) {
+      return 0;// no entry found
+    }
+    return commodity_beliefs.at(name).cost;
+  }
+
+  int GetIdeal(const std::string& name) const {
+    if (commodity_beliefs.count(name) != 1) {
+      return 0;// no entry found
+    }
+    return commodity_beliefs.at(name).ideal;
+  }
+};
+
 class InventoryItem {
 public:
     InventoryItem() = default;
