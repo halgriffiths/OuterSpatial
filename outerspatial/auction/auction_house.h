@@ -298,7 +298,9 @@ public:
     messages::ProductionResponse TickWorkerProduction(const worker::CommandRequestOp<market::RequestProductionComponent::Commands::RequestProduction>& op) {
         bool bankrupt = false;
         ::worker::Map< std::string, std::int32_t> produced = {};
-        return {bankrupt, produced};
+        ::worker::Map< std::string, std::int32_t> consumed = {};
+        //TODO: Implement!
+        return {bankrupt, produced, consumed};
     };
 private:
     // SPATIALOS CONCEPTS
