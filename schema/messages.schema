@@ -99,8 +99,9 @@ type EmptyMessage {
 
 type ProductionResponse {
   bool bankrupt = 1;
-  map<string, int32> production_result = 2;
-  map<string, int32> consumption_result = 3;
+  map<string, int32> useful_production_result = 2;
+  map<string, int32> overproduction_result = 3;
+  map<string, int32> consumption_result = 4;
 }
 
 type ProduceCommandRequest {

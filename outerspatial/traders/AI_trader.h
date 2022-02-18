@@ -67,6 +67,8 @@ private:
     int MAX_PROCESSED_MESSAGES_PER_FLUSH = 100;
     friend Role;
     std::mt19937 rng_gen = std::mt19937(std::random_device()());
+    double tracked_costs = 0;
+    double MIN_COST = 10;
     double MIN_PRICE = 0.10;
     bool ready = false;
 
@@ -107,7 +109,8 @@ private:
     void MakeCallbacks() override;
 
     // MESSAGE PROCESSING
-    void UpdatePriceModelFromProduction(worker::Map<std::basic_string<char>, int>& production,
+    void UpdatePriceModelFromProduction(worker::Map<std::basic_string<char>, int>& useful_production,
+                                        worker::Map<std::basic_string<char>, int>& overproduction,
                                         worker::Map<std::basic_string<char>, int>& consumption);
 
     // INTERNAL LOGIC
@@ -196,9 +199,10 @@ void AITrader::MakeCallbacks() {
             status = PENDING_DESTRUCTION;
             return;
           }
-          auto production = op.Response->production_result();
+          auto useful_production = op.Response->useful_production_result();
+          auto wasted_production = op.Response->overproduction_result();
           auto consumption = op.Response->consumption_result();
-          UpdatePriceModelFromProduction(production, consumption);
+          UpdatePriceModelFromProduction(useful_production, wasted_production, consumption);
         }
       });
   view.OnCommandResponse<RequestShutdownCommand>(
@@ -209,12 +213,28 @@ void AITrader::MakeCallbacks() {
         }
       });
 }
-void AITrader::UpdatePriceModelFromProduction(worker::Map<std::basic_string<char>, int>& production,
-    worker::Map<std::basic_string<char>, int>& consumption) {
+void AITrader::UpdatePriceModelFromProduction(worker::Map<std::basic_string<char>, int>& useful_production,
+                                              worker::Map<std::basic_string<char>, int>& overproduction,
+                                              worker::Map<std::basic_string<char>, int>& consumption) {
     //For everything consumed, track_costs incremented by personal value
-
+    for (auto& item : consumption) {
+      tracked_costs += item.second*QueryCost(item.first);
+    }
     //For everything produced, split the tracked costs across and set to zero
-
+    int quantity = 0;
+    for (auto& item : useful_production) {
+      quantity += item.second;
+    }
+    tracked_costs = std::max(QueryMoney() / 50, tracked_costs);
+    tracked_costs = std::max(MIN_COST, tracked_costs); //the richer you are, the greedier you get (the higher your minimum cost becomes)
+    double unit_price = tracked_costs /  quantity;
+    for (auto& item : useful_production) {
+      commodity_beliefs.UpdateCostFromProduction(item.first, item.second, unit_price);
+    }
+    //For OVERPRODUCED items, drop the perceived value of the good (encourage selling it off)
+    for (auto& item : overproduction) {
+      commodity_beliefs.commodity_beliefs[item.first].cost *= std::pow(1.3, -1*item.second);
+    }
 };
 double AITrader::TryTakeMoney(double quantity, bool atomic) {
     double amount_transferred;
@@ -308,7 +328,6 @@ void AITrader::GenerateOffers(const std::string& commodity) {
 }
 BidOffer AITrader::CreateBid(const std::string& commodity, int min_limit, int max_limit, double desperation) {
     double fair_bid_price;
-    //TODO: Get prices via spatialOS "view"
     auto price_info = ToPriceInfo(view, auction_house_id, commodity);
     if (!price_info) {
       RequestShutdown();
