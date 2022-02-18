@@ -21,7 +21,6 @@
 #include "traders/AI_trader.h"
 #include "traders/fake_trader.h"
 #include "traders/human_trader.h"
-#include "traders/roles.h"
 
 //std::shared_ptr<AITrader> CreateAndRegister(int id,
 //                                               const std::shared_ptr<AuctionHouse>& auction_house,

@@ -29,23 +29,6 @@ namespace {
     }
 }
 
-class Role {
-private:
-    // rng_gen
-    std::mersenne_twister_engine<uint_fast32_t, 32, 624, 397, 31, 0x9908b0dfUL, 11, 0xffffffffUL, 7, 0x9d2c5680UL, 15, 0xefc60000UL, 18, 1812433253UL> rng_gen = std::mt19937(std::random_device()());
-
-public:
-    std::string required_good;
-    Role(std::string required = "none", double min_cost = 1) : required_good(required), min_cost(min_cost){};
-    bool Random(double chance);
-    virtual void TickRole(AITrader & trader) = 0;
-    void Produce(AITrader & trader, const std::string& commodity, int amount, double chance = 1);
-    void Consume(AITrader & trader, const std::string& commodity, int amount, double chance = 1);
-    void LoseMoney(AITrader & trader, double amount);
-    double track_costs = 0;
-    double min_cost; //minimum fair price for a single produced good
-};
-
 namespace {
   enum TraderStatus {
     UNINITIALISED = 0,
@@ -65,7 +48,7 @@ private:
     int TICK_TIME_MS;
 
     int MAX_PROCESSED_MESSAGES_PER_FLUSH = 100;
-    friend Role;
+
     std::mt19937 rng_gen = std::mt19937(std::random_device()());
     double tracked_costs = 0;
     double MIN_COST = 10;
@@ -141,9 +124,6 @@ protected:
     double TryTakeMoney(double quantity, bool atomic) override;
     void ForceTakeMoney(double quantity) override;
     void AddMoney(double quantity) override;
-
-    int TryTakeCommodity(const std::string& commodity, int quantity, std::optional<double> unit_price, bool atomic) override;
-    int TryAddCommodity(const std::string& commodity, int quantity, std::optional<double> unit_price, bool atomic) override;
 };
 
 void AITrader::MakeCallbacks() {
@@ -459,35 +439,6 @@ void AITrader::TickOnce() {
       }
       ticks++;
     }
-}
-
-bool Role::Random(double chance) {
-    if (chance >= 1) return true;
-    return (rng_gen() < chance*rng_gen.max());
-}
-void Role::Produce(AITrader& trader, const std::string& commodity, int amount, double chance) {
-    if (amount > 0 && Random(chance)) {
-        trader.logger->Log(Log::DEBUG, "Produced " + std::string(commodity) + std::string(" x") + std::to_string(amount));
-
-        //the richer you are, the greedier you get (the higher your minimum cost becomes)
-        track_costs = std::max(trader.QueryMoney() / 50, track_costs);
-        track_costs = std::max(min_cost, track_costs);
-        trader.TryAddCommodity(commodity, amount, track_costs /  amount, false);
-        track_costs = 0;
-    }
-}
-void Role::Consume(AITrader& trader, const std::string& commodity, int amount, double chance) {
-    if (Random(chance)) {
-        trader.logger->Log(Log::DEBUG, "Consumed " + std::string(commodity) + std::string(" x") + std::to_string(amount));
-        int actual_quantity = trader.TryTakeCommodity(commodity, amount, 0, false);
-        if (actual_quantity > 0) {
-            track_costs += actual_quantity*trader.QueryCost(commodity);
-        }
-    }
-}
-void Role::LoseMoney(AITrader& trader, double amount) {
-    trader.ForceTakeMoney(amount);
-    //track_costs += amount;
 }
 
 #endif//CPPBAZAARBOT_AI_TRADER_H
