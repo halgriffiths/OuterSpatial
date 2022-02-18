@@ -80,7 +80,7 @@ public:
     , money(0){
         //construct inv_inventory = Inventory(inv_capacity, starting_inv);
       MakeCallbacks();
-      logger = std::make_unique<Logger>(verbosity, unique_name);
+      logger = std::make_unique<SpatialLogger>(verbosity, unique_name, connection);
     }
 
     ~AITrader() {

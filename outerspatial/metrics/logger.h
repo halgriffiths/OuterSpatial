@@ -77,7 +77,19 @@ private:
         return level_name;
     }
 };
+class SpatialLogger : public Logger {
+  worker::Connection& conn;
+public:
+  SpatialLogger(Log::LogLevel verbosity, std::string name, worker::Connection& connection)
+      : Logger(verbosity, name)
+       , conn(connection){ };
 
+  void LogInternal(std::string raw_message) const override {
+    raw_message += "\n";
+    std::fwrite(raw_message.c_str(), 1, raw_message.size()+1, stdout);
+    conn.SendLogMessage(worker::LogLevel::kWarn, name, raw_message);
+  }
+};
 class ConsoleLogger : public Logger {
 public:
     ConsoleLogger(Log::LogLevel verbosity, std::string name)
