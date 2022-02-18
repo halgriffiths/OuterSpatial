@@ -59,20 +59,20 @@ private:
 
     std::map<std::string, std::vector<std::pair<BidOffer, BidResult>>> bid_book = {};
     std::map<std::string, std::vector<std::pair<AskOffer, AskResult>>> ask_book = {};
-    FileLogger logger;
+    std::unique_ptr<Logger> logger;
 
 public:
     double spread_profit = 0;
     AuctionHouse(worker::Connection& connection, worker::View& view, int auction_house_id, Log::LogLevel verbosity)
         : Agent(auction_house_id, connection, view)
-        , unique_name(std::string("AH")+std::to_string(id))
-        , logger(FileLogger(verbosity, unique_name)) {
+        , unique_name(std::string("AH")+std::to_string(id)) {
+      logger = std::make_unique<Logger>(verbosity, unique_name);
         ConstructInitialAuctionHouseEntity(auction_house_id);
         MakeCallbacks();
     }
 
     ~AuctionHouse() override {
-        logger.Log(Log::DEBUG, "Destroying auction house");
+        logger->Log(Log::DEBUG, "Destroying auction house");
         known_traders.clear();
     }
     int GetNumTraders() const {
@@ -88,8 +88,8 @@ public:
     }
 
     void SendDirect(Message outgoing_message, std::shared_ptr<Agent>& recipient) {
-        logger.Log(Log::WARN, "Using SendDirect method to reach unregistered trader");
-        logger.LogSent(recipient->id, Log::DEBUG, outgoing_message.ToString());
+        logger->Log(Log::WARN, "Using SendDirect method to reach unregistered trader");
+        logger->LogSent(recipient->id, Log::DEBUG, outgoing_message.ToString());
         recipient->ReceiveMessage(std::move(outgoing_message));
     }
 
@@ -97,7 +97,7 @@ public:
     void ProcessBid(Message& message) {
         auto bid = message.bid_offer;
         if (!bid) {
-            logger.Log(Log::ERROR, "Malformed bid_offer message");
+            logger->Log(Log::ERROR, "Malformed bid_offer message");
             return; //drop
         }
         bid_book_mutex.lock();
@@ -107,7 +107,7 @@ public:
     void ProcessAsk(Message& message) {
         auto ask = message.ask_offer;
         if (!ask) {
-            logger.Log(Log::ERROR, "Malformed ask_offer message");
+            logger->Log(Log::ERROR, "Malformed ask_offer message");
             return; //drop
         }
         ask_book_mutex.lock();
@@ -117,7 +117,7 @@ public:
     void ProcessRegistrationRequest(Message& message) {
         auto request = message.register_request;
         if (!request) {
-            logger.Log(Log::ERROR, "Malformed register_request message");
+            logger->Log(Log::ERROR, "Malformed register_request message");
             return; //drop
         }
         // check no id clash
@@ -141,7 +141,7 @@ public:
         // Otherwise, OK the request and register
         auto res = request->trader_pointer.lock();
         if (!res) {
-            logger.Log(Log::ERROR, "Failed to convert weak_ptr to shared, unable to reply to reg request from "+std::to_string(requested_id));
+            logger->Log(Log::ERROR, "Failed to convert weak_ptr to shared, unable to reply to reg request from "+std::to_string(requested_id));
             return;
         }
         auto type = res->class_name;
@@ -271,10 +271,10 @@ public:
             if (elapsed < TICK_TIME_MS) {
                 std::this_thread::sleep_for(std::chrono::milliseconds{TICK_TIME_MS - elapsed});
             } else {
-                logger.Log(Log::WARN, "AH thread overran on tick "+ std::to_string(ticks) + ": took " + std::to_string(elapsed) +"/" + std::to_string(TICK_TIME_MS) + "ms )");
+                logger->Log(Log::WARN, "AH thread overran on tick "+ std::to_string(ticks) + ": took " + std::to_string(elapsed) +"/" + std::to_string(TICK_TIME_MS) + "ms )");
             }
             if (to_unix_timestamp_ms(std::chrono::system_clock::now()) > expiry_ms) {
-              logger.Log(Log::ERROR, "Shutting down (expiry time reached)");
+              logger->Log(Log::ERROR, "Shutting down (expiry time reached)");
               Shutdown();
             }
         }
@@ -284,7 +284,7 @@ public:
       for (const auto& item : known_commodities) {
         ResolveOffers(item.first);
       }
-      logger.Log(Log::INFO, "Net spread profit for tick" + std::to_string(ticks) + ": " + std::to_string(spread_profit));
+      logger->Log(Log::INFO, "Net spread profit for tick" + std::to_string(ticks) + ": " + std::to_string(spread_profit));
 
       UpdatePriceInfoComponent<market::FoodMarket>("food");
       UpdatePriceInfoComponent<market::WoodMarket>("wood");
@@ -297,10 +297,9 @@ public:
 
     messages::ProductionResponse TickWorkerProduction(const worker::CommandRequestOp<market::RequestProductionComponent::Commands::RequestProduction>& op) {
         bool bankrupt = false;
-        ::worker::Map< std::string, std::int32_t> produced = {};
-        ::worker::Map< std::string, std::int32_t> consumed = {};
+        ::worker::Map< std::string, std::int32_t> dummy = {};
         //TODO: Implement!
-        return {bankrupt, produced, consumed};
+        return {false, dummy, dummy, dummy};
     };
 private:
     // SPATIALOS CONCEPTS
@@ -421,7 +420,7 @@ private:
             num_deaths += 1;
             total_age += age_ticks;
 
-            logger.Log(Log::INFO, "Deregistered trader "+std::to_string(entity_id));
+            logger->Log(Log::INFO, "Deregistered trader "+std::to_string(entity_id));
             known_traders.erase(entity_id);
 
             connection.SendCommandResponse<RequestShutdownCommand>(op.RequestId, {true});
@@ -495,27 +494,27 @@ private:
     // Transaction functions
     bool CheckBidStake(BidOffer& offer) {
         if (offer.quantity < 0 || offer.unit_price <= 0) {
-            logger.Log(Log::WARN, "Rejected nonsensical bid: " + offer.ToString());
+            logger->Log(Log::WARN, "Rejected nonsensical bid: " + offer.ToString());
             return false;
         }
 
         //we refund the agent (if applicable) upon transaction resolution
         auto res = known_traders[offer.sender_id]->HasMoney(offer.quantity*offer.unit_price);
         if (!res) {
-            logger.Log(Log::DEBUG, "Failed to take Bid stake: " + offer.ToString());
+            logger->Log(Log::DEBUG, "Failed to take Bid stake: " + offer.ToString());
             return false;
         }
         return true;
     }
     bool CheckAskStake(AskOffer& offer) {
         if (offer.quantity < 0 || offer.unit_price <= 0) {
-            logger.Log(Log::WARN, "Rejected nonsensical ask: " + offer.ToString());
+            logger->Log(Log::WARN, "Rejected nonsensical ask: " + offer.ToString());
             return false;
         }
         //we refund the agent (if applicable) upon transaction resolution
         auto res = known_traders[offer.sender_id]->HasCommodity(offer.commodity, offer.quantity);
         if (!res) {
-            logger.Log(Log::DEBUG, "Failed to take Ask stake: " + offer.ToString());
+            logger->Log(Log::DEBUG, "Failed to take Ask stake: " + offer.ToString());
             return false;
         }
         return true;
@@ -547,13 +546,13 @@ private:
         auto actual_quantity = known_traders[seller]->TryTakeCommodity(commodity, quantity, 0, true);
         if (actual_quantity == 0) {
             // this may be unrecoverable, not sure
-            logger.Log(Log::WARN, "Seller lacks good! Aborting trade");
+            logger->Log(Log::WARN, "Seller lacks good! Aborting trade");
             return 1;
         }
         auto actual_money = known_traders[buyer]->TryTakeMoney(actual_quantity*clearing_price, true);
         if (actual_money == 0) {
             // this may be unrecoverable, not sure
-            logger.Log(Log::ERROR, "Buyer lacks money! Aborting trade");
+            logger->Log(Log::ERROR, "Buyer lacks money! Aborting trade");
             return 2;
         }
 
@@ -564,7 +563,7 @@ private:
         spread_profit += profit*SALES_TAX;
 
         auto info_msg = std::string("Made trade: ") + std::to_string(seller) + std::string(" >>> ") + std::to_string(buyer) + std::string(" : ") + commodity + std::string(" x") + std::to_string(quantity) + std::string(" @ $") + std::to_string(clearing_price);
-        logger.Log(Log::INFO, info_msg);
+        logger->Log(Log::INFO, info_msg);
         return 0;
     }
 

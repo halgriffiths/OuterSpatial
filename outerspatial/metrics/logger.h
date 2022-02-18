@@ -31,7 +31,7 @@ public:
         : verbosity(verbosity)
         , name(name) {};
 
-    virtual void LogInternal(std::string raw_message) const = 0;
+    virtual void LogInternal(std::string raw_message) const {}; //no-op
     void LogSent(int to, Log::LogLevel level, std::string message) const {
         if (level > verbosity) {
             return;

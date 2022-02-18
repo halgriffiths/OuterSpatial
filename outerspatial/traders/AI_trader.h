@@ -41,7 +41,6 @@ namespace {
 class AITrader : public Trader {
 private:
     std::atomic<bool> queue_active = true;
-    std::thread message_thread;
 
     std::string unique_name;
     
@@ -81,7 +80,7 @@ public:
     , money(0){
         //construct inv_inventory = Inventory(inv_capacity, starting_inv);
       MakeCallbacks();
-      logger = std::make_unique<FileLogger>(verbosity, unique_name);
+      logger = std::make_unique<Logger>(verbosity, unique_name);
     }
 
     ~AITrader() {
@@ -100,13 +99,13 @@ private:
     void GenerateOffers(const std::string& commodity);
     BidOffer CreateBid(const std::string& commodity, int min_limit, int max_limit, double desperation = 0);
     AskOffer CreateAsk(const std::string& commodity, int min_limit);
-
+    void SendOffer(AskOffer& offer);
+    void SendOffer(BidOffer& offer);
     int DetermineBuyQuantity(const std::string& commodity, double bid_price);
     int DetermineSaleQuantity(const std::string& commodity);
 
     std::pair<double, double> ObserveTradingRange(const std::string& commodity, int window);
 
-    void ShutdownMessageThread();
 public:
     void RequestShutdown();
     void Tick();
@@ -124,6 +123,10 @@ protected:
     double TryTakeMoney(double quantity, bool atomic) override;
     void ForceTakeMoney(double quantity) override;
     void AddMoney(double quantity) override;
+    double QuerySpace();
+    int QueryShortage(const std::string& commodity);
+    int QuerySurplus(const std::string& commodity);
+    double QueryUnitSize(const std::string& commodity);
 };
 
 void AITrader::MakeCallbacks() {
@@ -256,22 +259,54 @@ int AITrader::Query(const std::string& name) {
 double AITrader::QueryCost(const std::string& name) {
   return commodity_beliefs.GetCost(name);
 }
+int AITrader::QuerySurplus(const std::string& commodity) {
+  return std::max(0, Query(commodity) - commodity_beliefs.GetIdeal(commodity));
+}
+int AITrader::QueryShortage(const std::string& commodity) {
+  return std::max(0, commodity_beliefs.GetIdeal(commodity) - Query(commodity));
+}
+double AITrader::QuerySpace() {
+  auto inv = view.Entities[id].Get<trader::Inventory>();
+  double used_space = 0;
+  for (auto& item : inv->inv()) {
+    used_space += item.second.size()*item.second.quantity();
+  }
+  return inv->capacity() - used_space;
+}
+double AITrader::QueryUnitSize(const std::string& commodity) {
+  auto inv = view.Entities[id].Get<trader::Inventory>()->inv();
+  if (inv.count(commodity) != 1) {
+    return 0; // no entry found
+  }
+  return inv[commodity].size();
+}
 
-int QuerySurplus(const std::string& commodity) {
+void AITrader::SendOffer(AskOffer& offer) {
+  messages::AskOffer msg = {id,
+                            offer.commodity,
+                            offer.expiry_ms,
+                            offer.quantity,
+                            offer.unit_price};
+  using MakeAskOffer = market::MakeOfferCommandComponent::Commands::MakeAskOffer;
+  logger->Log(Log::INFO, "Making bid offer: " + ToString(msg));
+  connection.SendCommandRequest<MakeAskOffer>(auction_house_id, msg, {});
 }
-int QueryShortage(const std::string& commodity) {
-}
-double QuerySpace() {
-}
-double QueryUnitSize(const std::string& commodity) {
+void AITrader::SendOffer(BidOffer& offer) {
+  messages::BidOffer msg = {id,
+                            offer.commodity,
+                            offer.expiry_ms,
+                            offer.quantity,
+                            offer.unit_price};
+  using MakeBidOffer = market::MakeOfferCommandComponent::Commands::MakeBidOffer;
+  logger->Log(Log::INFO, "Making bid offer: " + ToString(msg));
+  connection.SendCommandRequest<MakeBidOffer>(auction_house_id, msg, {});
 }
 void AITrader::GenerateOffers(const std::string& commodity) {
     int surplus = QuerySurplus(commodity);
     if (surplus >= 1) {
-//        logger->Log(Log::DEBUG, "Considering ask for "+commodity + std::string(" - Current surplus = ") + std::to_string(surplus));
         auto offer = CreateAsk(commodity, 1);
         if (offer.quantity > 0) {
-            SendMessage(*Message(id).AddAskOffer(offer), auction_house_id);
+            SendOffer(offer);
         }
     }
 
@@ -301,7 +336,7 @@ void AITrader::GenerateOffers(const std::string& commodity) {
             desperation *= 1 - (0.4*(fulfillment - 0.5))/(1 + 0.4*std::abs(fulfillment-0.5));
             auto offer = CreateBid(commodity, min_limit, max_limit, desperation);
             if (offer.quantity > 0) {
-                SendMessage(*Message(id).AddBidOffer(offer), auction_house_id);
+                SendOffer(offer);
             }
         }
     }
@@ -429,6 +464,7 @@ void AITrader::Tick() {
 
 void AITrader::TickOnce() {
     if (status != ACTIVE) {
+        logger->Log(Log::DEBUG, "Not yet active, aborting tick");
         return;
     }
     using ProductionCommand = market::RequestProductionComponent::Commands::RequestProduction;

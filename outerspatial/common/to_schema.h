@@ -37,4 +37,28 @@ std::optional<market::PriceInfo> ToPriceInfo(worker::View& view, worker::EntityI
     return view.Entities[ah_id].Get<market::ToolsMarket>()->listing().price_info();
   }
 }
+
+std::string ToString(messages::BidOffer& offer) {
+  std::string output("BID from ");
+  output.append(std::to_string(offer.sender_id()))
+      .append(": ")
+      .append(offer.good())
+      .append(" x")
+      .append(std::to_string(offer.quantity()))
+      .append(" @ $")
+      .append(std::to_string(offer.unit_price()));
+  return output;
+}
+
+std::string ToString(messages::AskOffer& offer) {
+  std::string output("ASK from ");
+  output.append(std::to_string(offer.sender_id()))
+      .append(": ")
+      .append(offer.good())
+      .append(" x")
+      .append(std::to_string(offer.quantity()))
+      .append(" @ $")
+      .append(std::to_string(offer.unit_price()));
+  return output;
+}
 #endif  // OUTERSPATIALENGINE_TO_SCHEMA_H

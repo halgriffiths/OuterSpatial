@@ -42,7 +42,7 @@ component Inventory {
   double cash = 1;
   map<string, InventoryItem> inv = 2;
 
-  int32 capacity = 3;
+  double capacity = 3;
 }
 
 component AIBuildings {

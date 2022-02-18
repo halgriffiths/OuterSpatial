@@ -16,8 +16,9 @@ public:
     std::string name;
     int ideal;
     double cost;
+    CommodityBelief() : name("blank"), ideal(0), cost(0) {};
 
-    CommodityBelief(std::string commodity_name, int ideal, double original_cost)
+    CommodityBelief(std::string& commodity_name, int ideal, double original_cost)
     : name(std::move(commodity_name))
     , ideal(ideal)
     , cost(original_cost) {}
@@ -29,7 +30,8 @@ public:
   CommodityBeliefs() = default;
 
   void InitializeBelief(std::string commodity, int ideal_quantity = 0, double original_cost = 0.0) {
-    commodity_beliefs[commodity] = CommodityBelief(commodity, ideal_quantity, original_cost);
+    CommodityBelief belief(commodity, ideal_quantity, original_cost);
+    commodity_beliefs[commodity] = belief;
   }
 
   void UpdateCostFromProduction(const std::string& name, int quantity, double unit_price) {
