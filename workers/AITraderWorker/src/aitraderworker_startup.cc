@@ -185,11 +185,11 @@ int main(int argc, char** argv) {
   using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
   messages::RegisterRequest reg_req{messages::AgentType::AI_TRADER, messages::AIRole::NONE};
   connection.SendCommandRequest<RegisterTraderCommand>(ah_id, reg_req, {5000});
-  view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
-  std::make_shared<AITrader>(connection, view, ah_id, messages::AIRole::FARMER, 100, Log::INFO);
+  auto ai_trader_ptr = std::make_shared<AITrader>(connection, view, ah_id, messages::AIRole::FARMER, 100, Log::INFO);
+
   while (is_connected) {
+    ai_trader_ptr->TickOnce();
     std::this_thread::sleep_for(std::chrono::milliseconds{10});
-    view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
   }
 
   return ErrorExitStatus;

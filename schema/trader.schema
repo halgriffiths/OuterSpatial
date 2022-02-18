@@ -1,5 +1,6 @@
 package trader;
 
+import "improbable/standard_library.schema";
 import "messages.schema";
 import "commodity.schema";
 
@@ -69,5 +70,5 @@ component_set ServerTraderComponentSet {
 
 component_set ClientTraderComponentSet {
   id = 4005;
-  components = [Metadata, ReportOfferResultComponent];
+  components = [Metadata, improbable.Interest, ReportOfferResultComponent];
 }

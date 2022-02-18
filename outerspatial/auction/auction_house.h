@@ -42,7 +42,6 @@ private:
 
     int TICK_TIME_MS = 10; //ms
     std::atomic<bool> queue_active = true;
-    std::thread message_thread;
 
     std::mutex bid_book_mutex;
     std::mutex ask_book_mutex;
@@ -951,10 +950,8 @@ private:
       break;
     default:
       return messages::AIRole::NONE;
-      break;
     }
     trader_entity.Add<improbable::Metadata>({{RoleToString(requested_role) + std::to_string(trader_entity_id)}});
-    AddFarmerComponents(trader_entity);
     trader_entity.Add<improbable::Position>({{3, 0, static_cast<double>(trader_entity_id)}});
 
     trader_entity.Add<improbable::AuthorityDelegation>({{{50, trader_entity_id}}});
@@ -980,7 +977,7 @@ private:
                                                                             fertilizer_query, tools_query};
       improbable::ComponentSetInterest all_markets_interest;
       all_markets_interest.set_queries(const_queries);
-      trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+      trader_entity.Add<improbable::Interest>({{{4005, all_markets_interest}}});
 
     // Create production rules
     // 1 fert + 1 tool (10% break change) + 1 wood = 6 food

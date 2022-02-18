@@ -248,11 +248,14 @@ int AITrader::GetIdeal(const std::string& name) {
     return commodity_beliefs.GetIdeal(name);
 }
 int AITrader::Query(const std::string& name) {
-  auto inv = view.Entities[id].Get<trader::Inventory>()->inv();
-  if (inv.count(name) != 1) {
+  auto inv = view.Entities[id].Get<trader::Inventory>();
+  if (!inv) {
+    return 0;
+  }
+  if (inv->inv().count(name) != 1) {
     return 0; // no entry found
   }
-  return inv[name].quantity();
+  return inv->inv()[name].quantity();
 }
 
 
@@ -267,6 +270,10 @@ int AITrader::QueryShortage(const std::string& commodity) {
 }
 double AITrader::QuerySpace() {
   auto inv = view.Entities[id].Get<trader::Inventory>();
+  if (!inv) {
+    // TODO: Report error instead of failing silently & misleadingly
+    return 0;
+  }
   double used_space = 0;
   for (auto& item : inv->inv()) {
     used_space += item.second.size()*item.second.quantity();
@@ -274,11 +281,15 @@ double AITrader::QuerySpace() {
   return inv->capacity() - used_space;
 }
 double AITrader::QueryUnitSize(const std::string& commodity) {
-  auto inv = view.Entities[id].Get<trader::Inventory>()->inv();
-  if (inv.count(commodity) != 1) {
+  auto inv = view.Entities[id].Get<trader::Inventory>();
+  if (!inv) {
+    // TODO: Report error instead of failing silently & misleadingly
+    return 0;
+  }
+  if (inv->inv().count(commodity) != 1) {
     return 0; // no entry found
   }
-  return inv[commodity].size();
+  return inv->inv()[commodity].size();
 }
 
 void AITrader::SendOffer(AskOffer& offer) {
@@ -437,8 +448,10 @@ void AITrader::Tick() {
     using std::chrono::duration_cast;
     //Stagger starts
     std::this_thread::sleep_for(std::chrono::milliseconds{std::uniform_int_distribution<>(0, TICK_TIME_MS)(rng_gen)});
+    view.Process(connection.GetOpList(100));
     logger->Log(Log::INFO, "Beginning tickloop");
     while (status > UNINITIALISED) {
+        view.Process(connection.GetOpList(100));
         auto t1 = std::chrono::high_resolution_clock::now();
         if (status == ACTIVE) {
             connection.SendCommandRequest<ProductionCommand>(auction_house_id, {true}, {});
@@ -463,6 +476,7 @@ void AITrader::Tick() {
 }
 
 void AITrader::TickOnce() {
+    view.Process(connection.GetOpList(100));
     if (status != ACTIVE) {
         logger->Log(Log::DEBUG, "Not yet active, aborting tick");
         return;
