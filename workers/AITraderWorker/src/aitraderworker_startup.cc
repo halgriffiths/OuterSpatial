@@ -187,7 +187,7 @@ int main(int argc, char** argv) {
   connection.SendCommandRequest<RegisterTraderCommand>(ah_id, reg_req, {5000});
   auto ai_trader_ptr = std::make_shared<AITrader>(connection, view, ah_id, messages::AIRole::FARMER, 100, Log::INFO);
 
-  while (is_connected) {
+  while (is_connected && ai_trader_ptr->status != DESTROYED) {
     view.Process(connection.GetOpList(10));
     ai_trader_ptr->PrintInventory();
     ai_trader_ptr->TickOnce();

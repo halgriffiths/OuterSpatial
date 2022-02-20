@@ -72,15 +72,15 @@ public:
     std::atomic<TraderStatus> status = TraderStatus::UNINITIALISED;
 
     AITrader(worker::Connection& connection, worker::View& view, int auction_house_id, messages::AIRole role, int tick_time_ms, Log::LogLevel verbosity = Log::WARN)
-    : Trader(-1, "unregistered",  connection, view) //id is -1 until set by the SpatialOS Registration procedure
-    , unique_name(RoleToString(role))
+    : Trader(-1, "unassigned_class",  connection, view) //id is -1 until set by the SpatialOS Registration procedure
+    , unique_name("unregistered")
     , TICK_TIME_MS(tick_time_ms)
     , role(role)
     , auction_house_id(auction_house_id)
     , money(0){
         //construct inv_inventory = Inventory(inv_capacity, starting_inv);
       MakeCallbacks();
-      logger = std::make_unique<SpatialLogger>(verbosity, unique_name, connection);
+      logger = std::make_unique<SpatialLogger>(verbosity, "unregistered", connection);
     }
 
     ~AITrader() {
@@ -105,6 +105,7 @@ private:
     int DetermineSaleQuantity(const std::string& commodity);
 
     std::pair<double, double> ObserveTradingRange(const std::string& commodity, int window);
+    CommodityBeliefs SetDefaultCommodityBeliefs(messages::AIRole assigned_role);
 
 public:
     void RequestShutdown();
@@ -157,6 +158,13 @@ void AITrader::MakeCallbacks() {
           return;
         }
         id = op.Response->entity_id();
+        // Name accordingly
+        class_name = RoleToString(op.Response->assigned_role());
+        unique_name = class_name + std::to_string(id);
+        // Re-initialize logger
+        logger = std::make_unique<SpatialLogger>(logger->verbosity, unique_name, connection);
+        // Initialize commodities
+        commodity_beliefs = SetDefaultCommodityBeliefs(op.Response->assigned_role());
         status = ACTIVE;
       });
   view.OnCommandRequest<ReportBidResultCommand>(
@@ -191,6 +199,7 @@ void AITrader::MakeCallbacks() {
       [&](const worker::CommandResponseOp<RequestProductionCommand>& op) {
         if (op.StatusCode == worker::StatusCode::kSuccess) {
           if (op.Response->bankrupt()) {
+            logger->Log(Log::INFO, "Bankrupt after production on tick " + std::to_string(ticks) + ", requesting shutdown");
             messages::ShutdownRequest request = {id, role, 0, ticks};
             connection.SendCommandRequest<RequestShutdownCommand>(auction_house_id, request, {});
             status = PENDING_DESTRUCTION;
@@ -201,8 +210,7 @@ void AITrader::MakeCallbacks() {
           auto consumption = op.Response->consumption_result();
           UpdatePriceModelFromProduction(useful_production, wasted_production, consumption);
         } else {
-          connection.SendLogMessage(worker::LogLevel::kWarn, "AuctionHouse",
-                                    "ProductionRequest failed: " + op.Message);
+          logger->Log(Log::ERROR, "RequestProductionCommand failed!");
         }
       });
   view.OnCommandResponse<RequestShutdownCommand>(
@@ -373,7 +381,6 @@ BidOffer AITrader::CreateBid(const std::string& commodity, int min_limit, int ma
     double fair_bid_price;
     auto price_info = ToPriceInfo(view, auction_house_id, commodity);
     if (!price_info) {
-      RequestShutdown();
         // quantity 0 BidOffers are never sent
         // (Yes this is hacky)
         return BidOffer(id, commodity, 0, -1, 0);
@@ -398,7 +405,6 @@ AskOffer AITrader::CreateAsk(const std::string& commodity, int min_limit) {
     double ask_price;
     auto price_info = ToPriceInfo(view, auction_house_id, commodity);
     if (!price_info) {
-      RequestShutdown();
       // quantity 0 AskOffers are never sent
       // (Yes this is hacky)
       return AskOffer(id, commodity, 0, -1, 0);
@@ -455,7 +461,7 @@ void AITrader::RequestShutdown() {
     using RequestShutdownCommand = market::RequestShutdownComponent::Commands::RequestShutdown;
     connection.SendCommandRequest<RequestShutdownCommand>(auction_house_id, {id, role, 0, ticks}, {});
     status = PENDING_DESTRUCTION;
-    logger->Log(Log::INFO, class_name+std::to_string(id)+std::string(" destroyed."));
+    logger->Log(Log::INFO, unique_name+std::string(" destroyed."));
 }
 
 void AITrader::Tick() {
@@ -507,6 +513,29 @@ void AITrader::TickOnce() {
       }
       ticks++;
     }
+}
+
+CommodityBeliefs AITrader::SetDefaultCommodityBeliefs(messages::AIRole assigned_role) {
+  CommodityBeliefs initial_beliefs = {};
+  switch (assigned_role) {
+  case messages::AIRole::FARMER:
+    initial_beliefs.InitializeBelief("food", 0, view.Entities[auction_house_id].Get<market::FoodMarket>()->listing().price_info().recent_price());
+    initial_beliefs.InitializeBelief("tools", 2, view.Entities[auction_house_id].Get<market::ToolsMarket>()->listing().price_info().recent_price());
+    initial_beliefs.InitializeBelief("wood", 6, view.Entities[auction_house_id].Get<market::WoodMarket>()->listing().price_info().recent_price());
+    initial_beliefs.InitializeBelief("fertilizer", 6, view.Entities[auction_house_id].Get<market::FertilizerMarket>()->listing().price_info().recent_price());
+    break;
+  case messages::AIRole::WOODCUTTER:
+    break;
+  case messages::AIRole::COMPOSTER:
+    break;
+  case messages::AIRole::MINER:
+    break;
+  case messages::AIRole::REFINER:
+    break;
+  case messages::AIRole::BLACKSMITH:
+    break;
+  }
+  return initial_beliefs;
 }
 
 #endif//CPPBAZAARBOT_AI_TRADER_H

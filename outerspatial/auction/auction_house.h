@@ -238,9 +238,7 @@ public:
     double t_AverageHistoricalSupply(const std::string& commodity, int window) const {
         return history.net_supply.t_average(commodity, window);
     }
-    int NumKnownTraders() const {
-        return (int) known_traders.size();
-    }
+
     void RegisterCommodity(const Commodity& new_commodity) {
         if (known_commodities.find(new_commodity.name) != known_commodities.end()) {
             //already exists

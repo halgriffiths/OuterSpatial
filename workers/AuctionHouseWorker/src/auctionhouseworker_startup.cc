@@ -194,9 +194,7 @@ int main(int argc, char** argv) {
   connection.SendCommandRequest<AssignPartitionCommand>(
       connection.GetWorkerEntityId(), {auctionhousePartitionId}, /* default timeout */ {});
   auto AH_ptr = std::make_shared<AuctionHouse>(connection, view, 10, Log::INFO);
-  double elapsed_time = 0.0;
   auto last_tick_time = std::chrono::steady_clock::now();
-
   Commodity food("food", 0.5, 3010);
   Commodity wood("wood", 1, 3011);
   Commodity fertilizer("fertilizer", 0.1, 3012);
@@ -211,25 +209,20 @@ int main(int argc, char** argv) {
   AH_ptr->RegisterCommodity(metal);
   AH_ptr->RegisterCommodity(tools);
 
-  AH_ptr->history.initialise("wood");
+  const int TARGET_TICK_TIME_MS = 500;
+  int timedelta_ms;
   while (is_connected) {
     view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
 
-    // simulate some random trades ig
-    if (rand() % 5 == 2) {
-      AH_ptr->history.prices.add("food", (double)(rand() % 100 + 1));
-      AH_ptr->history.trades.add("food", 1);
-    }
-
-    if (rand() % 5 == 2) {
-      AH_ptr->history.prices.add("wood", (double)(rand() % 100 + 1));
-      AH_ptr->history.trades.add("wood", 1);
-    }
-
     AH_ptr->TickOnce();
     auto t_now = std::chrono::steady_clock::now();
-    elapsed_time += std::chrono::duration<double>(t_now - last_tick_time)
+    timedelta_ms += std::chrono::duration<double>(t_now - last_tick_time)
                         .count();  // Amount of time since last tick, in seconds
+    if (timedelta_ms < TARGET_TICK_TIME_MS) {
+      std::this_thread::sleep_for(std::chrono::milliseconds{TARGET_TICK_TIME_MS - timedelta_ms});
+    } else {
+      std::cout << "Overran on tick! (took " + std::to_string(timedelta_ms) + " ms)" << std::endl;
+    }
     last_tick_time = t_now;
   }
 
