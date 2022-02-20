@@ -1090,14 +1090,11 @@ private:
                               "AIFarm3", false};
     trader_entity.Add<trader::AIBuildings>({{farm1, farm2, farm3}, 20});
     // Add starting inventory
-    // double cash,
-    //      const ::worker::Map< std::string, ::trader::InventoryItem >& inv,
-    //      double capacity);
     ::worker::Map<std::string, ::trader::InventoryItem> starting_inv = {
-        {"food", {0.5, 0}},
-        {"tools", {1, 1}},
-        {"wood", {1, 1}},
-        {"fertilizer", {0.1, 1}}
+        {"food", {known_commodities["food"].size, 0}},
+        {"tools", {known_commodities["tools"].size, 1}},
+        {"wood", {known_commodities["wood"].size, 1}},
+        {"fertilizer", {known_commodities["fertilizer"].size, 1}}
     };
     trader_entity.Add<trader::Inventory>({500, starting_inv, 20});
 
@@ -1114,8 +1111,14 @@ private:
     food_query.set_constraint(market_constraint).set_result_component_id({3010});
     wood_query.set_constraint(market_constraint).set_result_component_id({3011});
 
+    // add interest for own inventory & buildings
+    improbable::ComponentSetInterest_QueryConstraint self_constraint;
+    self_constraint.set_entity_id_constraint(entity_id);
+    improbable::ComponentSetInterest_Query inventory_query;
+    inventory_query.set_constraint(self_constraint).set_result_component_id({4001}); //Inventory component
+
     worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, wood_query,
-                                                                          tools_query};
+                                                                          tools_query, inventory_query};
     improbable::ComponentSetInterest all_markets_interest;
     all_markets_interest.set_queries(const_queries);
     trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
@@ -1133,6 +1136,13 @@ private:
                               2,
                               "AILumberyard2", false};
     trader_entity.Add<trader::AIBuildings>({{lumberyard1, lumberyard2}, 20});
+    // Add starting inventory
+    ::worker::Map<std::string, ::trader::InventoryItem> starting_inv = {
+        {"food", {known_commodities["food"].size, 1}},
+        {"tools", {known_commodities["tools"].size, 1}},
+        {"wood", {known_commodities["wood"].size, 0}},
+    };
+    trader_entity.Add<trader::Inventory>({500, starting_inv, 20});
   }
 
   void AddComposterComponents(worker::Entity& trader_entity, int entity_id) {
@@ -1144,7 +1154,13 @@ private:
     food_query.set_constraint(market_constraint).set_result_component_id({3010});
     fertilizer_query.set_constraint(market_constraint).set_result_component_id({3012});
 
-    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, fertilizer_query};
+    // add interest for own inventory & buildings
+    improbable::ComponentSetInterest_QueryConstraint self_constraint;
+    self_constraint.set_entity_id_constraint(entity_id);
+    improbable::ComponentSetInterest_Query inventory_query;
+    inventory_query.set_constraint(self_constraint).set_result_component_id({4001}); //Inventory component
+
+    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, fertilizer_query, inventory_query};
     improbable::ComponentSetInterest all_markets_interest;
     all_markets_interest.set_queries(const_queries);
     trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
@@ -1157,6 +1173,12 @@ private:
                               "AIComposter1", false};
 
     trader_entity.Add<trader::AIBuildings>({{composter1}, 20});
+    // Add starting inventory
+    ::worker::Map<std::string, ::trader::InventoryItem> starting_inv = {
+        {"food", {known_commodities["food"].size, 1}},
+        {"fertilizer", {known_commodities["fertilizer"].size, 0}}
+    };
+    trader_entity.Add<trader::Inventory>({500, starting_inv, 20});
   }
 
   void AddMinerComponents(worker::Entity& trader_entity, int entity_id) {
@@ -1168,7 +1190,13 @@ private:
     food_query.set_constraint(market_constraint).set_result_component_id({3010});
     tools_query.set_constraint(market_constraint).set_result_component_id({3015});
 
-    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, tools_query};
+    // add interest for own inventory & buildings
+    improbable::ComponentSetInterest_QueryConstraint self_constraint;
+    self_constraint.set_entity_id_constraint(entity_id);
+    improbable::ComponentSetInterest_Query inventory_query;
+    inventory_query.set_constraint(self_constraint).set_result_component_id({4001}); //Inventory component
+
+    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, tools_query, inventory_query};
     improbable::ComponentSetInterest all_markets_interest;
     all_markets_interest.set_queries(const_queries);
     trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
@@ -1187,6 +1215,13 @@ private:
                               "AIMine2", false};
 
     trader_entity.Add<trader::AIBuildings>({{mine1, mine2}, 20});
+    // Add starting inventory
+    ::worker::Map<std::string, ::trader::InventoryItem> starting_inv = {
+        {"food", {known_commodities["food"].size, 1}},
+        {"tools", {known_commodities["tools"].size, 1}},
+        {"ore", {known_commodities["ore"].size, 0}},
+    };
+    trader_entity.Add<trader::Inventory>({500, starting_inv, 20});
   }
 
   void AddRefinerComponents(worker::Entity& trader_entity, int entity_id) {
@@ -1199,7 +1234,13 @@ private:
     ore_query.set_constraint(market_constraint).set_result_component_id({3013});
     metal_query.set_constraint(market_constraint).set_result_component_id({3014});
 
-    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, tools_query, ore_query, metal_query};
+    // add interest for own inventory & buildings
+    improbable::ComponentSetInterest_QueryConstraint self_constraint;
+    self_constraint.set_entity_id_constraint(entity_id);
+    improbable::ComponentSetInterest_Query inventory_query;
+    inventory_query.set_constraint(self_constraint).set_result_component_id({4001}); //Inventory component
+
+    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, tools_query, ore_query, metal_query, inventory_query};
     improbable::ComponentSetInterest all_markets_interest;
     all_markets_interest.set_queries(const_queries);
     trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
@@ -1225,6 +1266,14 @@ private:
                                  3,
                                  "AISmelter3", false};
     trader_entity.Add<trader::AIBuildings>({{smelter1, smelter2, smelter3}, 20});
+    // Add starting inventory
+    ::worker::Map<std::string, ::trader::InventoryItem> starting_inv = {
+        {"food", {known_commodities["food"].size, 1}},
+        {"tools", {known_commodities["tools"].size, 1}},
+        {"ore", {known_commodities["ore"].size, 1}},
+        {"metal", {known_commodities["metal"].size, 0}}
+    };
+    trader_entity.Add<trader::Inventory>({500, starting_inv, 20});
   }
 
   void AddBlacksmithComponents(worker::Entity& trader_entity, int entity_id) {
@@ -1236,7 +1285,13 @@ private:
     tools_query.set_constraint(market_constraint).set_result_component_id({3015});
     metal_query.set_constraint(market_constraint).set_result_component_id({3014});
 
-    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, tools_query, metal_query};
+    // add interest for own inventory & buildings
+    improbable::ComponentSetInterest_QueryConstraint self_constraint;
+    self_constraint.set_entity_id_constraint(entity_id);
+    improbable::ComponentSetInterest_Query inventory_query;
+    inventory_query.set_constraint(self_constraint).set_result_component_id({4001}); //Inventory component
+
+    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, tools_query, metal_query, inventory_query};
     improbable::ComponentSetInterest all_markets_interest;
     all_markets_interest.set_queries(const_queries);
     trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
@@ -1250,6 +1305,13 @@ private:
                                  "AIForge1", true};
 
     trader_entity.Add<trader::AIBuildings>({{forge1}, 20});
+    // Add starting inventory
+    ::worker::Map<std::string, ::trader::InventoryItem> starting_inv = {
+        {"food", {known_commodities["food"].size, 1}},
+        {"tools", {known_commodities["tools"].size, 0}},
+        {"metal", {known_commodities["metal"].size, 1}},
+    };
+    trader_entity.Add<trader::Inventory>({500, starting_inv, 20});
   }
 
   void SendResult(AskResult& result) {
