@@ -45,7 +45,6 @@ private:
 
     std::mutex bid_book_mutex;
     std::mutex ask_book_mutex;
-//    std::mutex known_traders_mutex;
 
     int MAX_PROCESSED_MESSAGES_PER_FLUSH = 800;
     double SALES_TAX = 0.08;
@@ -53,7 +52,6 @@ private:
     int ticks = 0;
     std::mt19937 rng_gen = std::mt19937(std::random_device()());
     std::map<std::string, Commodity> known_commodities;
-    std::map<int, std::shared_ptr<Trader>> known_traders;  //key = trader-id
     std::map<std::string, int> demographics = {};
 
     std::map<std::string, std::vector<std::pair<BidOffer, BidResult>>> bid_book = {};
@@ -72,10 +70,6 @@ public:
 
     ~AuctionHouse() override {
         logger->Log(Log::DEBUG, "Destroying auction house");
-        known_traders.clear();
-    }
-    int GetNumTraders() const {
-        return (int) known_traders.size();
     }
 
     std::pair<double, std::map<std::string, int>> GetDemographics() const {
@@ -112,46 +106,6 @@ public:
         ask_book_mutex.lock();
         ask_book[ask->commodity].push_back({*ask, {id, ask->commodity} });
         ask_book_mutex.unlock();
-    }
-    void ProcessRegistrationRequest(Message& message) {
-        auto request = message.register_request;
-        if (!request) {
-            logger->Log(Log::ERROR, "Malformed register_request message");
-            return; //drop
-        }
-        // check no id clash
-        auto requested_id = message.sender_id;
-        if (requested_id == id) {
-            auto msg = Message(id);
-            msg.AddRegisterResponse(RegisterResponse(id, false, "ID clash with auction house"));
-            std::shared_ptr<Agent> ptr = request->trader_pointer.lock();
-            SendDirect(msg, ptr);
-            return;
-        }
-
-        if (known_traders.find(requested_id) != known_traders.end()) {
-            auto msg = Message(id);
-            msg.AddRegisterResponse(RegisterResponse(id, false, "ID clash with existing trader"));
-            std::shared_ptr<Agent> ptr = request->trader_pointer.lock();
-            SendDirect(msg, ptr);
-            return;
-        }
-
-        // Otherwise, OK the request and register
-        auto res = request->trader_pointer.lock();
-        if (!res) {
-            logger->Log(Log::ERROR, "Failed to convert weak_ptr to shared, unable to reply to reg request from "+std::to_string(requested_id));
-            return;
-        }
-        auto type = res->class_name;
-        if (demographics.count(type) != 1) {
-            demographics[res->class_name] = 1;
-        } else {
-            demographics[res->class_name] += 1;
-        }
-        known_traders[requested_id] = std::move(res);
-        auto msg = Message(id).AddRegisterResponse(RegisterResponse(id, true));
-        SendMessage(*msg, requested_id);
     }
 
   template <class Tmarket>
@@ -503,7 +457,6 @@ private:
             total_age += age_ticks;
 
             logger->Log(Log::INFO, "Deregistered trader "+std::to_string(entity_id));
-            known_traders.erase(entity_id);
 
             connection.SendCommandResponse<RequestShutdownCommand>(op.RequestId, {true});
 
@@ -621,29 +574,88 @@ private:
         }
         SendResult(ask_result);
     }
+    int TryTakeCommodity(int trader_id, const std::string& commodity, int quantity, bool atomic) {
+        if (quantity <= 0) return 0;
+        auto inv = view.Entities[trader_id].Get<trader::Inventory>();
+        if (!inv) {
+          return 0;
+        }
+        auto initial_inventory = inv->inv();
+        if (initial_inventory.count(commodity) != 1) return 0;
+        int available = initial_inventory[commodity].quantity();
+        if (available < quantity && atomic) return 0;
 
+        int actual_taken = std::min(available, quantity);
+        initial_inventory[commodity].set_quantity( available - actual_taken);
+        trader::Inventory::Update inv_update;
+        inv_update.set_inv(initial_inventory);
+        connection.SendComponentUpdate<trader::Inventory>(trader_id, inv_update, {});
+        return actual_taken;
+    }
+    double TryTakeMoney(int trader_id, double quantity, bool atomic) {
+      if (quantity <= 0) return 0;
+      auto inv = view.Entities[trader_id].Get<trader::Inventory>();
+      if (!inv) {
+        return 0;
+      }
+
+      double available = inv->cash();
+      if (available < quantity && atomic) return 0;
+
+      double actual_taken = std::min(available, quantity);
+      trader::Inventory::Update inv_update;
+      inv_update.set_cash(available - actual_taken);
+      connection.SendComponentUpdate<trader::Inventory>(trader_id, inv_update, {});
+      return actual_taken;
+    }
+    int TryAddCommodity(int trader_id, const std::string& commodity, int quantity, bool atomic) {
+      if (quantity <= 0) return 0;
+      auto inv = view.Entities[trader_id].Get<trader::Inventory>();
+      if (!inv) {
+        return 0;
+      }
+
+      int actual_added = std::min((int) std::floor(QuerySpace(*inv) / known_commodities[commodity].size), quantity);
+      auto initial_inventory = inv->inv();
+      initial_inventory[commodity].set_quantity( initial_inventory[commodity].quantity() + actual_added);
+      trader::Inventory::Update inv_update;
+      inv_update.set_inv(initial_inventory);
+      connection.SendComponentUpdate<trader::Inventory>(trader_id, inv_update, {});
+      return actual_added;
+    }
+    void AddMoney(int trader_id, double quantity) {
+      if (quantity <= 0) return;
+      auto inv = view.Entities[trader_id].Get<trader::Inventory>();
+      if (!inv) {
+        return;
+      }
+      trader::Inventory::Update inv_update;
+      inv_update.set_cash(inv->cash() + quantity);
+      connection.SendComponentUpdate<trader::Inventory>(trader_id, inv_update, {});
+      return;
+    }
     // 0 - success
     // 1 - seller failed
     // 2 - buyer failed
     int MakeTransaction(const std::string& commodity, int buyer, int seller, int quantity, double clearing_price) {
+        // TODO: Instead of making many component updates, they could all be combined into just two net deltas
         // take from seller
-        auto actual_quantity = known_traders[seller]->TryTakeCommodity(commodity, quantity, 0, true);
+        auto actual_quantity = TryTakeCommodity(seller, commodity, quantity, true);
         if (actual_quantity == 0) {
             // this may be unrecoverable, not sure
             logger->Log(Log::WARN, "Seller lacks good! Aborting trade");
             return 1;
         }
-        auto actual_money = known_traders[buyer]->TryTakeMoney(actual_quantity*clearing_price, true);
+        auto actual_money = TryTakeMoney(buyer, actual_quantity*clearing_price, true);
         if (actual_money == 0) {
             // this may be unrecoverable, not sure
             logger->Log(Log::ERROR, "Buyer lacks money! Aborting trade");
             return 2;
         }
-
-        known_traders[buyer]->TryAddCommodity(commodity, actual_quantity, clearing_price, false);
+        TryAddCommodity(buyer, commodity, actual_quantity, false);
         //take sales tax from seller
         double profit = actual_quantity*clearing_price;
-        known_traders[seller]->AddMoney(profit*(1-SALES_TAX));
+        AddMoney(seller, profit*(1-SALES_TAX));
         spread_profit += profit*SALES_TAX;
 
         auto info_msg = std::string("Made trade: ") + std::to_string(seller) + std::string(" >>> ") + std::to_string(buyer) + std::string(" : ") + commodity + std::string(" x") + std::to_string(quantity) + std::string(" @ $") + std::to_string(clearing_price);
@@ -652,11 +664,8 @@ private:
     }
 
     void TakeBrokerFee(BidOffer& offer, BidResult& result) {
-        if (known_traders.find(offer.sender_id) == known_traders.end()) {
-            return; //trader not found
-        }
         double fee = offer.quantity*offer.unit_price*BROKER_FEE;
-        auto res = known_traders[offer.sender_id]->TryTakeMoney(fee, true);
+        auto res = TryTakeMoney(offer.sender_id, fee, true);
         if (res > 0) {
             spread_profit += fee;
             result.broker_fee_paid = true;
@@ -666,11 +675,8 @@ private:
         }
     }
     void TakeBrokerFee(AskOffer& offer, AskResult& result) {
-        if (known_traders.find(offer.sender_id) == known_traders.end()) {
-            return; //trader not found
-        }
         double fee = offer.quantity*offer.unit_price*BROKER_FEE;
-        auto res = known_traders[offer.sender_id]->TryTakeMoney(fee, true);
+        auto res = TryTakeMoney(offer.sender_id, fee, true);
         if (res > 0) {
             spread_profit += fee;
             result.broker_fee_paid = true;
@@ -681,10 +687,6 @@ private:
     }
 
     bool ValidateBid(BidOffer& curr_bid, BidResult& bid_result, std::int64_t resolve_time) {
-        if (known_traders.find(curr_bid.sender_id) == known_traders.end()) {
-            return false; //trader not found
-        }
-
         if (curr_bid.expiry_ms == 0) {
             curr_bid.expiry_ms = 1;
             bid_result.broker_fee_paid = true; //dont need to pay broker fees for immediate offers
@@ -699,9 +701,6 @@ private:
     }
 
     bool ValidateAsk(AskOffer& curr_ask, AskResult& ask_result, std::int64_t resolve_time) {
-        if (known_traders.find(curr_ask.sender_id) == known_traders.end()) {
-            return false; //trader not found
-        }
         if (curr_ask.expiry_ms == 0) {
             curr_ask.expiry_ms = 1;
             ask_result.broker_fee_paid = true; //dont need to pay broker fees for immediate offers
