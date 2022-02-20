@@ -70,6 +70,12 @@ std::string GetProducer(std::string& commodity) {
         return "null";
     }
 }
+
+messages::AIRole ChooseNewClassRandom(std::mt19937& gen) {
+  std::uniform_int_distribution<> random_job(0, 7); // hardcoded to match messages.schema
+  return static_cast<messages::AIRole>(random_job(gen));
+}
+
 std::string ChooseNewClassWeighted(std::vector<std::string>& tracked_goods, std::shared_ptr<AuctionHouse>& auction_house, std::mt19937& gen) {
     std::vector<double> weights;
     double gamma = -0.02;

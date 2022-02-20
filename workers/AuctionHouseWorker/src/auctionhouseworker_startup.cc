@@ -216,8 +216,8 @@ int main(int argc, char** argv) {
 
     AH_ptr->TickOnce();
     auto t_now = std::chrono::steady_clock::now();
-    timedelta_ms += std::chrono::duration<double>(t_now - last_tick_time)
-                        .count();  // Amount of time since last tick, in seconds
+    timedelta_ms = std::chrono::duration<double, std::milli>(t_now - last_tick_time)
+                        .count();  // Amount of time since last tick, in milliseconds
     if (timedelta_ms < TARGET_TICK_TIME_MS) {
       std::this_thread::sleep_for(std::chrono::milliseconds{TARGET_TICK_TIME_MS - timedelta_ms});
     } else {

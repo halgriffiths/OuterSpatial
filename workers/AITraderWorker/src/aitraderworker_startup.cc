@@ -181,17 +181,42 @@ int main(int argc, char** argv) {
                                   "Worker with ID " + op.Data.worker_id() + " connected.");
       });
   // MY STUFF STARTS HERE
-  int ah_id = 10;
-  using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
-  messages::RegisterRequest reg_req{messages::AgentType::AI_TRADER, messages::AIRole::NONE};
-  connection.SendCommandRequest<RegisterTraderCommand>(ah_id, reg_req, {5000});
-  auto ai_trader_ptr = std::make_shared<AITrader>(connection, view, ah_id, messages::AIRole::FARMER, 100, Log::INFO);
 
-  while (is_connected && ai_trader_ptr->status != DESTROYED) {
-    view.Process(connection.GetOpList(10));
-    ai_trader_ptr->PrintInventory();
-    ai_trader_ptr->TickOnce();
-    std::this_thread::sleep_for(std::chrono::milliseconds{1000});
+  using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
+  int ah_id = 10;
+  auto rng_gen = std::mt19937(std::random_device()());
+
+  const int TARGET_TICK_TIME_MS = 1000;
+  int timedelta_ms;
+
+  std::shared_ptr<AITrader> ai_trader_ptr;
+  messages::AIRole requested_role;
+
+  while (is_connected) {
+    requested_role = ChooseNewClassRandom(rng_gen);
+    messages::RegisterRequest reg_req{messages::AgentType::AI_TRADER, requested_role};
+    connection.SendCommandRequest<RegisterTraderCommand>(ah_id, reg_req, {1000});
+    ai_trader_ptr = std::make_shared<AITrader>(connection, view, ah_id, messages::AIRole::FARMER, 100, Log::INFO);
+    connection.SendLogMessage(worker::LogLevel::kInfo, "AITraderWorkerStartup", "Creating new trader of type: " + RoleToString(requested_role));
+    auto last_tick_time = std::chrono::steady_clock::now();
+    while (ai_trader_ptr->status != DESTROYED) {
+      view.Process(connection.GetOpList(10));
+
+      ai_trader_ptr->PrintInventory();
+      ai_trader_ptr->TickOnce();
+
+      auto t_now = std::chrono::steady_clock::now();
+      timedelta_ms = std::chrono::duration<double, std::milli>(t_now - last_tick_time)
+          .count();  // Amount of time since last tick, in seconds
+      if (timedelta_ms < TARGET_TICK_TIME_MS) {
+        std::this_thread::sleep_for(std::chrono::milliseconds{TARGET_TICK_TIME_MS - timedelta_ms});
+      } else {
+        std::cout << "Overran on tick! (took " + std::to_string(timedelta_ms) + " ms)" << std::endl;
+      }
+      last_tick_time = t_now;
+    }
+
+    std::cout << "Worker destroyed! Creating replacement..." << std::endl;
   }
   return ErrorExitStatus;
 }
