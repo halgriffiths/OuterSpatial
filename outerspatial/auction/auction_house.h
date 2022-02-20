@@ -155,7 +155,7 @@ public:
     }
 
   template <class Tmarket>
-  void UpdatePriceInfoComponentRandomly(const std::string& commodity) {
+  void UpdatePriceInfoComponent(const std::string& commodity) {
       static_assert(std::is_base_of<::worker::detail::ComponentMetaclass, Tmarket>::value, "T must inherit from ComponentMetaclass");
       int recent = 50*TICK_TIME_MS; // arbritrary choice
 
@@ -285,12 +285,12 @@ public:
       }
       logger->Log(Log::INFO, "Net spread profit for tick" + std::to_string(ticks) + ": " + std::to_string(spread_profit));
 
-      UpdatePriceInfoComponentRandomly<market::FoodMarket>("food");
-      UpdatePriceInfoComponentRandomly<market::WoodMarket>("wood");
-      UpdatePriceInfoComponentRandomly<market::FertilizerMarket>("fertilizer");
-      UpdatePriceInfoComponentRandomly<market::OreMarket>("ore");
-      UpdatePriceInfoComponentRandomly<market::MetalMarket>("metal");
-      UpdatePriceInfoComponentRandomly<market::ToolsMarket>("tools");
+      UpdatePriceInfoComponent<market::FoodMarket>("food");
+      UpdatePriceInfoComponent<market::WoodMarket>("wood");
+      UpdatePriceInfoComponent<market::FertilizerMarket>("fertilizer");
+      UpdatePriceInfoComponent<market::OreMarket>("ore");
+      UpdatePriceInfoComponent<market::MetalMarket>("metal");
+      UpdatePriceInfoComponent<market::ToolsMarket>("tools");
 
     }
     double QuerySpace(trader::InventoryData& inv) {
@@ -314,6 +314,9 @@ public:
       if (inv.inv().count(commodity) != 1) return false;
       if (inv.inv()[commodity].quantity() < quantity ) return false;
       return true;
+    }
+    bool CheckTraderHasMoney(double quantity, trader::InventoryData& inv) {
+      return (inv.cash() >= quantity);
     }
     bool CheckBuildingRequirementsMet(worker::List<trader::Consumption>& all_requirements, trader::InventoryData& inv) {
       for (auto& requirement : all_requirements) {
@@ -579,9 +582,12 @@ private:
             return false;
         }
 
-        //we refund the agent (if applicable) upon transaction resolution
-        auto res = known_traders[offer.sender_id]->HasMoney(offer.quantity*offer.unit_price);
-        if (!res) {
+        auto inv = view.Entities[offer.sender_id].Get<trader::Inventory>();
+        if (!inv) {
+          logger->Log(Log::WARN, "Missing entity for Bid stake: " + offer.ToString());
+          return false;
+        }
+        if (!CheckTraderHasMoney(offer.quantity*offer.unit_price, *inv)) {
             logger->Log(Log::DEBUG, "Failed to take Bid stake: " + offer.ToString());
             return false;
         }
@@ -592,9 +598,12 @@ private:
             logger->Log(Log::WARN, "Rejected nonsensical ask: " + offer.ToString());
             return false;
         }
-        //we refund the agent (if applicable) upon transaction resolution
-        auto res = known_traders[offer.sender_id]->HasCommodity(offer.commodity, offer.quantity);
-        if (!res) {
+        auto inv = view.Entities[offer.sender_id].Get<trader::Inventory>();
+        if (!inv) {
+          logger->Log(Log::WARN, "Missing entity for Ask stake: " + offer.ToString());
+          return false;
+        }
+        if (!CheckTraderHasItem(offer.commodity, offer.quantity, *inv)) {
             logger->Log(Log::DEBUG, "Failed to take Ask stake: " + offer.ToString());
             return false;
         }
@@ -605,18 +614,14 @@ private:
             // partially unfilled
             bid_result.UpdateWithNoTrade(bid.quantity);
         }
-        if (known_traders.find(bid.sender_id) != known_traders.end()) {
-            SendMessage(*Message(id).AddBidResult(std::move(bid_result)), bid.sender_id);
-        }
+        SendResult(bid_result);
     }
     void CloseAsk(const AskOffer& ask, AskResult ask_result) {
         if (ask.quantity > 0) {
             // partially unfilled
             ask_result.UpdateWithNoTrade(ask.quantity);
         }
-        if (known_traders.find(ask.sender_id) != known_traders.end()) {
-            SendMessage(*Message(id).AddAskResult(std::move(ask_result)), ask.sender_id);
-        }
+        SendResult(ask_result);
     }
 
     // 0 - success
@@ -1248,6 +1253,31 @@ private:
                                  "AIForge1", true};
 
     trader_entity.Add<trader::AIBuildings>({{forge1}, 20});
+  }
+
+  void SendResult(AskResult& result) {
+    messages::AskResult msg = {
+        result.commodity,
+        result.quantity_traded,
+        result.quantity_untraded,
+        result.avg_price,
+        result.broker_fee_paid
+    };
+    using ReportAskOffer = trader::ReportOfferResultComponent::Commands::ReportAskOffer;
+    logger->Log(Log::INFO, "Sending ask result: " + result.ToString());
+    connection.SendCommandRequest<ReportAskOffer>(result.sender_id, msg, {});
+  }
+  void SendResult(BidResult& result) {
+    messages::BidResult msg = {
+        result.commodity,
+        result.quantity_traded,
+        result.quantity_untraded,
+        result.bought_price,
+        result.broker_fee_paid
+    };
+    using ReportBidOffer = trader::ReportOfferResultComponent::Commands::ReportBidOffer;
+    logger->Log(Log::INFO, "Sending bid result: " + result.ToString());
+    connection.SendCommandRequest<ReportBidOffer>(result.sender_id, msg, {});
   }
 };
 

@@ -18,18 +18,6 @@ enum AIRole {
   REFINER = 6;
   BLACKSMITH = 7;
 }
-
-enum TradeOutcome {
-  // Order completed (all goods bought/sold)
-  FILLED = 1;
-  // Some, but not all, of the requested goods were bought/sold
-  MIXED = 2;
-  // Nothing was bought/sold
-  EMPTY = 3;
-  // Order failed (eg: missing stake, malformed request, etc)
-  REJECTED = 4;
-}
-
 type BidOffer {
   EntityId sender_id = 1;
   string good = 2;
@@ -54,7 +42,6 @@ type BidResult {
   double avg_price = 4;
 
   bool broker_fee_paid = 5;
-  TradeOutcome outcome = 6; // TODO: Currently unused field. Either use it or lose it.
 }
 
 type AskResult {
@@ -65,7 +52,6 @@ type AskResult {
   double avg_price = 4;
 
   bool broker_fee_paid = 5;
-  TradeOutcome outcome = 6;
 }
 
 type RegisterRequest {
