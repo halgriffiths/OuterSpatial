@@ -311,7 +311,8 @@ private:
       AH_entity.Add<improbable::Metadata>({{"AuctionHouseEntity"}});
       AH_entity.Add<improbable::Persistence>({});
       AH_entity.Add<improbable::Position>({{1, 0, static_cast<double>(AH_id)}});
-      AH_entity.Add<improbable::AuthorityDelegation>({{{3020, 3}}});
+      // TODO: Create partition entity instead of using hardcoded snapshot one (id = 3)
+      AH_entity.Add<improbable::AuthorityDelegation>({{{3020, 3}}}); //3 is the auction house partition entity
       AH_entity.Add<market::RegisterCommandComponent>({});
       AH_entity.Add<market::MakeOfferCommandComponent>({});
       AH_entity.Add<market::RequestShutdownComponent>({});
