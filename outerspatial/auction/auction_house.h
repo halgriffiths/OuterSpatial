@@ -955,7 +955,7 @@ private:
     trader_entity.Add<improbable::Metadata>({{RoleToString(requested_role) + std::to_string(trader_entity_id)}});
     trader_entity.Add<improbable::Position>({{3, 0, static_cast<double>(trader_entity_id)}});
 
-    trader_entity.Add<improbable::AuthorityDelegation>({{{4005, trader_entity_id}, {4004, id}}});
+    trader_entity.Add<improbable::AuthorityDelegation>({{{4005, trader_entity_id}, {4004, 3}}}); // The AH partition entity is hardcoded to 3
     connection.SendCreateEntityRequest(trader_entity, trader_entity_id, {});
 
     return requested_role;
