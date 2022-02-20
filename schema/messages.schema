@@ -97,17 +97,12 @@ type EmptyMessage {
   bool ack = 1; //not sure if an empty type is allowed so we have this pointless field
 }
 
+type ProductionRequest {
+  int32 sender_id = 1;
+}
 type ProductionResponse {
   bool bankrupt = 1;
   map<string, int32> useful_production_result = 2;
   map<string, int32> overproduction_result = 3;
   map<string, int32> consumption_result = 4;
-}
-
-type ProduceCommandRequest {
-  EntityId sender_id = 1;
-}
-
-type ProduceCommandResponse {
-  bool should_shutdown = 1;
 }

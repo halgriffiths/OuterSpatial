@@ -52,11 +52,6 @@ component AIBuildings {
   double idle_tax = 2;
 }
 
-component ProduceCommandComponent {
-  id = 4003;
-  command messages.ProduceCommandResponse produce_command(messages.ProduceCommandRequest);
-}
-
 component ReportOfferResultComponent {
   id = 4010;
   command messages.EmptyMessage report_bid_offer(messages.BidResult);
@@ -65,7 +60,7 @@ component ReportOfferResultComponent {
 
 component_set ServerTraderComponentSet {
   id = 4004;
-  components = [Inventory, ProduceCommandComponent, AIBuildings];
+  components = [Inventory, AIBuildings];
 }
 
 component_set ClientTraderComponentSet {

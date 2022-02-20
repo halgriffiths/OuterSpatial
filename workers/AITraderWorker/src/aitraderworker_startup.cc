@@ -33,8 +33,8 @@ worker::Schema<
     market::RequestProductionComponent,
     market::DemographicInfo,
     trader::Inventory,
-    trader::ProduceCommandComponent,
     trader::AIBuildings,
+    trader::ReportOfferResultComponent,
     sample::LoginListenerSet,
     sample::PositionSet,
     improbable::Interest,
@@ -188,9 +188,10 @@ int main(int argc, char** argv) {
   auto ai_trader_ptr = std::make_shared<AITrader>(connection, view, ah_id, messages::AIRole::FARMER, 100, Log::INFO);
 
   while (is_connected) {
+    view.Process(connection.GetOpList(10));
+    ai_trader_ptr->PrintInventory();
     ai_trader_ptr->TickOnce();
-    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    std::this_thread::sleep_for(std::chrono::milliseconds{1000});
   }
-
   return ErrorExitStatus;
 }

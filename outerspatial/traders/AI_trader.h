@@ -111,6 +111,7 @@ public:
     void Tick();
     void TickOnce();
 
+    void PrintInventory();
     int GetIdeal(const std::string& name);
     int Query(const std::string& name);
     double QueryCost(const std::string& name);
@@ -129,6 +130,19 @@ protected:
     double QueryUnitSize(const std::string& commodity);
 };
 
+void AITrader::PrintInventory() {
+  auto inv = view.Entities[id].Get<trader::Inventory>();
+  std::cout << "Printing inventory for trader #" << id << std::endl;
+  if (!inv) {
+    std::cout << "\tERR: Can't get inventory object!" << std::endl;
+    return;
+  }
+  std::cout << QuerySpace() << " kg remaining out of " << inv->capacity() << std::endl;
+  for (auto& item : inv->inv()) {
+    std::cout << "\t" << item.first << " : " << item.second.quantity();
+  }
+  std::cout << "\t" << "Money : " << inv->cash() << std::endl;
+}
 void AITrader::MakeCallbacks() {
   using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
   using ReportBidResultCommand = trader::ReportOfferResultComponent::Commands::ReportBidOffer;
@@ -186,6 +200,9 @@ void AITrader::MakeCallbacks() {
           auto wasted_production = op.Response->overproduction_result();
           auto consumption = op.Response->consumption_result();
           UpdatePriceModelFromProduction(useful_production, wasted_production, consumption);
+        } else {
+          connection.SendLogMessage(worker::LogLevel::kWarn, "AuctionHouse",
+                                    "ProductionRequest failed: " + op.Message);
         }
       });
   view.OnCommandResponse<RequestShutdownCommand>(
@@ -454,7 +471,7 @@ void AITrader::Tick() {
         view.Process(connection.GetOpList(100));
         auto t1 = std::chrono::high_resolution_clock::now();
         if (status == ACTIVE) {
-            connection.SendCommandRequest<ProductionCommand>(auction_house_id, {true}, {});
+            connection.SendCommandRequest<ProductionCommand>(auction_house_id, {id}, {});
             for (const auto &commodity : commodity_beliefs.commodity_beliefs) {
                 GenerateOffers(commodity.first);
             }
@@ -476,14 +493,15 @@ void AITrader::Tick() {
 }
 
 void AITrader::TickOnce() {
+    using ProductionCommand = market::RequestProductionComponent::Commands::RequestProduction;
     view.Process(connection.GetOpList(100));
     if (status != ACTIVE) {
         logger->Log(Log::DEBUG, "Not yet active, aborting tick");
         return;
     }
-    using ProductionCommand = market::RequestProductionComponent::Commands::RequestProduction;
+
     if (status == ACTIVE) {
-      connection.SendCommandRequest<ProductionCommand>(auction_house_id, {true}, {});
+      connection.SendCommandRequest<ProductionCommand>(auction_house_id, {id}, {});
       for (const auto& commodity : commodity_beliefs.commodity_beliefs) {
         GenerateOffers(commodity.first);
       }

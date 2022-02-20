@@ -51,7 +51,7 @@ private:
     double SALES_TAX = 0.08;
     double BROKER_FEE = 0.03;
     int ticks = 0;
-//    std::mt19937 rng_gen = std::mt19937(std::random_device()());
+    std::mt19937 rng_gen = std::mt19937(std::random_device()());
     std::map<std::string, Commodity> known_commodities;
     std::map<int, std::shared_ptr<Trader>> known_traders;  //key = trader-id
     std::map<std::string, int> demographics = {};
@@ -155,7 +155,7 @@ public:
     }
 
   template <class Tmarket>
-  void UpdatePriceInfoComponent(const std::string& commodity) {
+  void UpdatePriceInfoComponentRandomly(const std::string& commodity) {
       static_assert(std::is_base_of<::worker::detail::ComponentMetaclass, Tmarket>::value, "T must inherit from ComponentMetaclass");
       int recent = 50*TICK_TIME_MS; // arbritrary choice
 
@@ -285,20 +285,96 @@ public:
       }
       logger->Log(Log::INFO, "Net spread profit for tick" + std::to_string(ticks) + ": " + std::to_string(spread_profit));
 
-      UpdatePriceInfoComponent<market::FoodMarket>("food");
-      UpdatePriceInfoComponent<market::WoodMarket>("wood");
-      UpdatePriceInfoComponent<market::FertilizerMarket>("fertilizer");
-      UpdatePriceInfoComponent<market::OreMarket>("ore");
-      UpdatePriceInfoComponent<market::MetalMarket>("metal");
-      UpdatePriceInfoComponent<market::ToolsMarket>("tools");
+      UpdatePriceInfoComponentRandomly<market::FoodMarket>("food");
+      UpdatePriceInfoComponentRandomly<market::WoodMarket>("wood");
+      UpdatePriceInfoComponentRandomly<market::FertilizerMarket>("fertilizer");
+      UpdatePriceInfoComponentRandomly<market::OreMarket>("ore");
+      UpdatePriceInfoComponentRandomly<market::MetalMarket>("metal");
+      UpdatePriceInfoComponentRandomly<market::ToolsMarket>("tools");
 
     }
+    double QuerySpace(trader::InventoryData& inv) {
+      double used_space = 0;
+      for (auto& item : inv.inv()) {
+        used_space += item.second.size()*item.second.quantity();
+      }
+      return inv.capacity() - used_space;
+    }
+    int ConsumeItem(trader::InventoryItem& item, int quantity) {
+      int actual_consumed = std::max(quantity, item.quantity());
+      item.set_quantity(item.quantity() - actual_consumed);
+      return actual_consumed;
+    };
+    int ProduceItem(trader::InventoryItem& item, int quantity, double capacity) {
+      int actual_produced = std::max(quantity, (int) std::floor(capacity * item.size()));
+      item.set_quantity(item.quantity() + actual_produced);
+      return actual_produced;
+    }
+    bool CheckTraderHasItem(std::string& commodity, int quantity, trader::InventoryData& inv) {
+      if (inv.inv().count(commodity) != 1) return false;
+      if (inv.inv()[commodity].quantity() < quantity ) return false;
+      return true;
+    }
+    bool CheckBuildingRequirementsMet(worker::List<trader::Consumption>& all_requirements, trader::InventoryData& inv) {
+      for (auto& requirement : all_requirements) {
+        if (!CheckTraderHasItem(requirement.item().name(), requirement.quantity(), inv)) {
+          return false;
+        }
+      }
+      return true;
+    }
+    std::optional<messages::ProductionResponse> TickWorkerProduction(const worker::CommandRequestOp<market::RequestProductionComponent::Commands::RequestProduction>& op) {
+        ::worker::Map< std::string, std::int32_t> production = {};
+        ::worker::Map< std::string, std::int32_t> overproduction = {};
+        ::worker::Map< std::string, std::int32_t> consumption = {};
 
-    messages::ProductionResponse TickWorkerProduction(const worker::CommandRequestOp<market::RequestProductionComponent::Commands::RequestProduction>& op) {
-        bool bankrupt = false;
-        ::worker::Map< std::string, std::int32_t> dummy = {};
+        auto trader_buildings = view.Entities[op.Request.sender_id()].Get<trader::AIBuildings>();
+        auto trader_inventory = view.Entities[op.Request.sender_id()].Get<trader::Inventory>();
+        if (!trader_inventory) {
+          return {};
+        }
+        if (!trader_buildings) {
+          return {};
+        }
+
+        auto all_buildings = trader_buildings->buildings();
+        std::vector<trader::Building*> building_ptrs;
+        for (auto& item : all_buildings) {
+          building_ptrs.push_back(&item);
+        }
+        // Sort production options by priority
+        std::sort(building_ptrs.begin(), building_ptrs.end(),
+                  [](trader::Building* i,trader::Building* j){
+                    return i->priority() < j->priority();
+                  });
+        trader::Inventory::Update inv_update;
+        for (auto& ptr : building_ptrs) {
+          if (CheckBuildingRequirementsMet(ptr->requires(), *trader_inventory)) {
+            std::uniform_real_distribution<> consumption_chance(0, 1);
+            auto final_inventory = trader_inventory->inv();
+            for (auto& requirement : ptr->requires()) {
+              if (requirement.chance() >= 1 || consumption_chance(rng_gen) < requirement.chance()) {
+                //consume
+                int actual = ConsumeItem(final_inventory[requirement.item().name()], requirement.quantity());
+                consumption[requirement.item().name()] = actual;
+              }
+            }
+            for (auto& result : ptr->produces()) {
+              if (result.chance() >= 1 || consumption_chance(rng_gen) < result.chance()) {
+                int actual = ProduceItem(final_inventory[result.item().name()], result.quantity(), QuerySpace(*trader_inventory));
+                production[result.item().name()] = actual;
+                overproduction[result.item().name()] = result.quantity() - actual; // overflow
+              }
+            }
+            inv_update.set_inv(final_inventory);
+            connection.SendComponentUpdate<trader::Inventory>(op.Request.sender_id(), inv_update);
+            return {{(trader_inventory->cash() < 0), production, overproduction, consumption}};
+          }
+        }
         //TODO: Implement!
-        return {false, dummy, dummy, dummy};
+        inv_update.set_cash(trader_inventory->cash() - trader_buildings->idle_tax());
+        connection.SendComponentUpdate<trader::Inventory>(op.Request.sender_id(), inv_update);
+        return {{(trader_inventory->cash() < 0), production, overproduction, consumption}};
     };
 private:
     // SPATIALOS CONCEPTS
@@ -315,6 +391,7 @@ private:
       AH_entity.Add<improbable::AuthorityDelegation>({{{3020, 3}}}); //3 is the auction house partition entity
       AH_entity.Add<market::RegisterCommandComponent>({});
       AH_entity.Add<market::MakeOfferCommandComponent>({});
+      AH_entity.Add<market::RequestProductionComponent>({});
       AH_entity.Add<market::RequestShutdownComponent>({});
       AH_entity.Add<market::DemographicInfo>({{},
                                               0,
@@ -409,7 +486,11 @@ private:
       using RequestProductionCommand = market::RequestProductionComponent::Commands::RequestProduction;
       view.OnCommandRequest<RequestProductionCommand>(
           [&](const worker::CommandRequestOp<RequestProductionCommand>& op) {
-            connection.SendCommandResponse<RequestProductionCommand>(op.RequestId, TickWorkerProduction(op));
+            auto res = TickWorkerProduction(op);
+            if (!res) {
+              connection.SendCommandFailure<RequestProductionCommand>(op.RequestId, "Failed to tick production");
+            }
+            connection.SendCommandResponse<RequestProductionCommand>(op.RequestId, *res);
           });
       view.OnCommandRequest<RequestShutdownCommand>(
           [&](const worker::CommandRequestOp<RequestShutdownCommand>& op) {
@@ -932,22 +1013,22 @@ private:
     }
     switch (requested_role) {
     case messages::AIRole::FARMER:
-      AddFarmerComponents(trader_entity);
+      AddFarmerComponents(trader_entity, trader_entity_id);
       break;
     case messages::AIRole::WOODCUTTER:
-      AddWoodcutterComponents(trader_entity);
+      AddWoodcutterComponents(trader_entity, trader_entity_id);
       break;
     case messages::AIRole::COMPOSTER:
-      AddComposterComponents(trader_entity);
+      AddComposterComponents(trader_entity, trader_entity_id);
       break;
     case messages::AIRole::MINER:
-      AddMinerComponents(trader_entity);
+      AddMinerComponents(trader_entity, trader_entity_id);
       break;
     case messages::AIRole::REFINER:
-      AddRefinerComponents(trader_entity);
+      AddRefinerComponents(trader_entity, trader_entity_id);
       break;
     case messages::AIRole::BLACKSMITH:
-      AddBlacksmithComponents(trader_entity);
+      AddBlacksmithComponents(trader_entity, trader_entity_id);
       break;
     default:
       return messages::AIRole::NONE;
@@ -961,7 +1042,7 @@ private:
     return requested_role;
   }
 
-  void AddFarmerComponents(worker::Entity& trader_entity) {
+  void AddFarmerComponents(worker::Entity& trader_entity, int entity_id) {
       // set interested in Tools, Food, Wood and Fertilizer
       improbable::ComponentSetInterest_QueryConstraint market_constraint;
       market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
@@ -974,8 +1055,14 @@ private:
       wood_query.set_constraint(market_constraint).set_result_component_id({3011});
       fertilizer_query.set_constraint(market_constraint).set_result_component_id({3012});
 
+      // add interest for own inventory & buildings
+      improbable::ComponentSetInterest_QueryConstraint self_constraint;
+      self_constraint.set_entity_id_constraint(entity_id);
+      improbable::ComponentSetInterest_Query inventory_query;
+      inventory_query.set_constraint(self_constraint).set_result_component_id({4001}); //Inventory component
+
       worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, wood_query,
-                                                                            fertilizer_query, tools_query};
+                                                                            fertilizer_query, tools_query, inventory_query};
       improbable::ComponentSetInterest all_markets_interest;
       all_markets_interest.set_queries(const_queries);
       trader_entity.Add<improbable::Interest>({{{4005, all_markets_interest}}});
@@ -999,10 +1086,22 @@ private:
                               {{ToSchemaCommodity(known_commodities["fertilizer"]), 1, 1.0}},
                               3,
                               "AIFarm3", false};
-      trader_entity.Add<trader::AIBuildings>({{farm1, farm2, farm3}, 20});
+    trader_entity.Add<trader::AIBuildings>({{farm1, farm2, farm3}, 20});
+    // Add starting inventory
+    // double cash,
+    //      const ::worker::Map< std::string, ::trader::InventoryItem >& inv,
+    //      double capacity);
+    ::worker::Map<std::string, ::trader::InventoryItem> starting_inv = {
+        {"food", {0.5, 0}},
+        {"tools", {1, 1}},
+        {"wood", {1, 1}},
+        {"fertilizer", {0.1, 1}}
+    };
+    trader_entity.Add<trader::Inventory>({500, starting_inv, 20});
+
   }
 
-  void AddWoodcutterComponents(worker::Entity& trader_entity) {
+  void AddWoodcutterComponents(worker::Entity& trader_entity, int entity_id) {
     // set interested in Food, Wood and Tools
     improbable::ComponentSetInterest_QueryConstraint market_constraint;
     market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
@@ -1034,7 +1133,7 @@ private:
     trader_entity.Add<trader::AIBuildings>({{lumberyard1, lumberyard2}, 20});
   }
 
-  void AddComposterComponents(worker::Entity& trader_entity) {
+  void AddComposterComponents(worker::Entity& trader_entity, int entity_id) {
     // set interested in Food and Fertilizer
     improbable::ComponentSetInterest_QueryConstraint market_constraint;
     market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
@@ -1058,7 +1157,7 @@ private:
     trader_entity.Add<trader::AIBuildings>({{composter1}, 20});
   }
 
-  void AddMinerComponents(worker::Entity& trader_entity) {
+  void AddMinerComponents(worker::Entity& trader_entity, int entity_id) {
     // set interested in Food and Tools
     improbable::ComponentSetInterest_QueryConstraint market_constraint;
     market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
@@ -1088,7 +1187,7 @@ private:
     trader_entity.Add<trader::AIBuildings>({{mine1, mine2}, 20});
   }
 
-  void AddRefinerComponents(worker::Entity& trader_entity) {
+  void AddRefinerComponents(worker::Entity& trader_entity, int entity_id) {
     // set interested in Food, Ore, Metal and Tools
     improbable::ComponentSetInterest_QueryConstraint market_constraint;
     market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
@@ -1126,7 +1225,7 @@ private:
     trader_entity.Add<trader::AIBuildings>({{smelter1, smelter2, smelter3}, 20});
   }
 
-  void AddBlacksmithComponents(worker::Entity& trader_entity) {
+  void AddBlacksmithComponents(worker::Entity& trader_entity, int entity_id) {
     // set interested in Food, Metal and Tools
     improbable::ComponentSetInterest_QueryConstraint market_constraint;
     market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent

@@ -40,7 +40,7 @@ component RequestShutdownComponent {
 
 component RequestProductionComponent {
   id = 3003;
-  command messages.ProductionResponse request_production(messages.EmptyMessage);
+  command messages.ProductionResponse request_production(messages.ProductionRequest);
 }
 
 component FoodMarket {

@@ -39,7 +39,6 @@ worker::Schema<
     market::RequestShutdownComponent,
     market::DemographicInfo,
     trader::Inventory,
-    trader::ProduceCommandComponent,
     trader::AIBuildings,
     sample::LoginListenerSet,
     sample::PositionSet,
