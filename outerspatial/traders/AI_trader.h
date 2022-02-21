@@ -132,6 +132,9 @@ protected:
 };
 
 void AITrader::PrintInventory() {
+  if (status == UNINITIALISED) {
+    return;
+  }
   auto inv = view.Entities[id].Get<trader::Inventory>();
   std::cout << "Printing inventory for trader #" << id << std::endl;
   if (!inv) {

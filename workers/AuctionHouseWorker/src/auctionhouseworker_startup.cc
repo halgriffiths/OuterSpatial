@@ -215,13 +215,17 @@ int main(int argc, char** argv) {
     view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
 
     AH_ptr->TickOnce();
+
+
     auto t_now = std::chrono::steady_clock::now();
     timedelta_ms = std::chrono::duration<double, std::milli>(t_now - last_tick_time)
                         .count();  // Amount of time since last tick, in milliseconds
-    if (timedelta_ms < TARGET_TICK_TIME_MS) {
-      std::this_thread::sleep_for(std::chrono::milliseconds{TARGET_TICK_TIME_MS - timedelta_ms});
-    } else {
-      std::cout << "Overran on tick! (took " + std::to_string(timedelta_ms) + " ms)" << std::endl;
+
+    while (timedelta_ms < TARGET_TICK_TIME_MS) {
+      view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
+      t_now = std::chrono::steady_clock::now();
+      timedelta_ms = std::chrono::duration<double, std::milli>(t_now - last_tick_time)
+          .count();  // Amount of time since last tick, in milliseconds
     }
     last_tick_time = t_now;
   }

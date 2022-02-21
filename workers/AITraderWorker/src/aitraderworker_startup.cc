@@ -186,7 +186,7 @@ int main(int argc, char** argv) {
   int ah_id = 10;
   auto rng_gen = std::mt19937(std::random_device()());
 
-  const int TARGET_TICK_TIME_MS = 1000;
+  const int TARGET_TICK_TIME_MS = 500;
   int timedelta_ms;
 
   std::shared_ptr<AITrader> ai_trader_ptr;
@@ -196,11 +196,11 @@ int main(int argc, char** argv) {
     requested_role = ChooseNewClassRandom(rng_gen);
     messages::RegisterRequest reg_req{messages::AgentType::AI_TRADER, requested_role};
     connection.SendCommandRequest<RegisterTraderCommand>(ah_id, reg_req, {1000});
-    ai_trader_ptr = std::make_shared<AITrader>(connection, view, ah_id, messages::AIRole::FARMER, 100, Log::INFO);
+    ai_trader_ptr = std::make_shared<AITrader>(connection, view, ah_id, requested_role, 100, Log::INFO);
     connection.SendLogMessage(worker::LogLevel::kInfo, "AITraderWorkerStartup", "Creating new trader of type: " + RoleToString(requested_role));
     auto last_tick_time = std::chrono::steady_clock::now();
     while (ai_trader_ptr->status != DESTROYED) {
-      view.Process(connection.GetOpList(10));
+      view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
 
       ai_trader_ptr->PrintInventory();
       ai_trader_ptr->TickOnce();
@@ -208,15 +208,19 @@ int main(int argc, char** argv) {
       auto t_now = std::chrono::steady_clock::now();
       timedelta_ms = std::chrono::duration<double, std::milli>(t_now - last_tick_time)
           .count();  // Amount of time since last tick, in seconds
-      if (timedelta_ms < TARGET_TICK_TIME_MS) {
-        std::this_thread::sleep_for(std::chrono::milliseconds{TARGET_TICK_TIME_MS - timedelta_ms});
-      } else {
-        std::cout << "Overran on tick! (took " + std::to_string(timedelta_ms) + " ms)" << std::endl;
+      while (timedelta_ms < TARGET_TICK_TIME_MS) {
+        view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
+        t_now = std::chrono::steady_clock::now();
+        timedelta_ms = std::chrono::duration<double, std::milli>(t_now - last_tick_time)
+            .count();  // Amount of time since last tick, in milliseconds
       }
       last_tick_time = t_now;
     }
 
     std::cout << "Worker destroyed! Creating replacement..." << std::endl;
+    //terrible hack to give "shutdown confirmed" message time to send
+    connection.AlphaFlush();
+    view.Process(connection.GetOpList(3000));
   }
   return ErrorExitStatus;
 }

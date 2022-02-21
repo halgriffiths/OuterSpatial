@@ -24,17 +24,49 @@ messages::AskOffer ToSchemaAskOffer(AskOffer& offer, worker::EntityId sender_ent
 
 std::optional<market::PriceInfo> ToPriceInfo(worker::View& view, worker::EntityId ah_id, const std::string& commodity) {
   if (commodity == "food") {
-    return view.Entities[ah_id].Get<market::FoodMarket>()->listing().price_info();
+    auto market = view.Entities[ah_id].Get<market::FoodMarket>();
+    if (!market) {
+      return {};
+    } else {
+      return market->listing().price_info();
+    }
   } else if (commodity == "wood") {
-    return view.Entities[ah_id].Get<market::WoodMarket>()->listing().price_info();
+    auto market = view.Entities[ah_id].Get<market::WoodMarket>();
+    if (!market) {
+      return {};
+    } else {
+      return market->listing().price_info();
+    }
   } else if (commodity == "fertilizer") {
-    return view.Entities[ah_id].Get<market::FertilizerMarket>()->listing().price_info();
+    auto market = view.Entities[ah_id].Get<market::FertilizerMarket>();
+    if (!market) {
+      return {};
+    } else {
+      return market->listing().price_info();
+    }
   } else if (commodity == "ore") {
-    return view.Entities[ah_id].Get<market::OreMarket>()->listing().price_info();
+    auto market = view.Entities[ah_id].Get<market::OreMarket>();
+    if (!market) {
+      return {};
+    } else {
+      return market->listing().price_info();
+    }
   } else if (commodity == "metal") {
-    return view.Entities[ah_id].Get<market::MetalMarket>()->listing().price_info();
+    auto market = view.Entities[ah_id].Get<market::MetalMarket>();
+    if (!market) {
+      return {};
+    } else {
+      return market->listing().price_info();
+    }
   } else if (commodity == "tools") {
-    return view.Entities[ah_id].Get<market::ToolsMarket>()->listing().price_info();
+    auto market = view.Entities[ah_id].Get<market::ToolsMarket>();
+    if (!market) {
+      return {};
+    } else {
+      return market->listing().price_info();
+    }
+  } else {
+    return {};
   }
 }
 

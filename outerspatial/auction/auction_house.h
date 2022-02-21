@@ -326,7 +326,6 @@ public:
             return {{(trader_inventory->cash() < 0), production, overproduction, consumption}};
           }
         }
-        //TODO: Implement!
         inv_update.set_cash(trader_inventory->cash() - trader_buildings->idle_tax());
         connection.SendComponentUpdate<trader::Inventory>(op.Request.sender_id(), inv_update);
         return {{(trader_inventory->cash() < 0), production, overproduction, consumption}};
@@ -857,8 +856,8 @@ private:
     int RegisterNewAgent(const worker::CommandRequestOp<market::RegisterCommandComponent::Commands::RegisterCommand>& op) {
       using AssignPartitionCommand = improbable::restricted::Worker::Commands::AssignPartition;
       // Set parameters
-      std::int32_t GetOpListTimeout = 100; // all times in ms unless stated otherwise
-      std::int32_t WhileLoopTimeout = 100;
+      std::int32_t GetOpListTimeout = 500; // all times in ms unless stated otherwise
+      std::int32_t WhileLoopTimeout = 500;
 
       worker::EntityId entity_id;
       ah::RegisterProgress progress = ah::NONE;
@@ -1045,29 +1044,29 @@ private:
   }
 
   void AddFarmerComponents(worker::Entity& trader_entity, int entity_id) {
-      // set interested in Tools, Food, Wood and Fertilizer
-      improbable::ComponentSetInterest_QueryConstraint market_constraint;
-      market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
-      improbable::ComponentSetInterest_Query tools_query;
-      improbable::ComponentSetInterest_Query food_query;
-      improbable::ComponentSetInterest_Query wood_query;
-      improbable::ComponentSetInterest_Query fertilizer_query;
-      tools_query.set_constraint(market_constraint).set_result_component_id({3015});
-      food_query.set_constraint(market_constraint).set_result_component_id({3010});
-      wood_query.set_constraint(market_constraint).set_result_component_id({3011});
-      fertilizer_query.set_constraint(market_constraint).set_result_component_id({3012});
+    // set interested in Tools, Food, Wood and Fertilizer
+    improbable::ComponentSetInterest_QueryConstraint market_constraint;
+    market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
+    improbable::ComponentSetInterest_Query tools_query;
+    improbable::ComponentSetInterest_Query food_query;
+    improbable::ComponentSetInterest_Query wood_query;
+    improbable::ComponentSetInterest_Query fertilizer_query;
+    tools_query.set_constraint(market_constraint).set_result_component_id({3015});
+    food_query.set_constraint(market_constraint).set_result_component_id({3010});
+    wood_query.set_constraint(market_constraint).set_result_component_id({3011});
+    fertilizer_query.set_constraint(market_constraint).set_result_component_id({3012});
 
-      // add interest for own inventory & buildings
-      improbable::ComponentSetInterest_QueryConstraint self_constraint;
-      self_constraint.set_entity_id_constraint(entity_id);
-      improbable::ComponentSetInterest_Query inventory_query;
-      inventory_query.set_constraint(self_constraint).set_result_component_id({4001}); //Inventory component
+    // add interest for own inventory & buildings
+    improbable::ComponentSetInterest_QueryConstraint self_constraint;
+    self_constraint.set_entity_id_constraint(entity_id);
+    improbable::ComponentSetInterest_Query inventory_query;
+    inventory_query.set_constraint(self_constraint).set_result_component_id({4001}); //Inventory component
 
-      worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, wood_query,
-                                                                            fertilizer_query, tools_query, inventory_query};
-      improbable::ComponentSetInterest all_markets_interest;
-      all_markets_interest.set_queries(const_queries);
-      trader_entity.Add<improbable::Interest>({{{4005, all_markets_interest}}});
+    worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, wood_query,
+                                                                          fertilizer_query, tools_query, inventory_query};
+    improbable::ComponentSetInterest all_markets_interest;
+    all_markets_interest.set_queries(const_queries);
+    trader_entity.Add<improbable::Interest>({{{4005, all_markets_interest}}});
 
     // Create production rules
     // 1 fert + 1 tool (10% break change) + 1 wood = 6 food
@@ -1121,7 +1120,7 @@ private:
                                                                           tools_query, inventory_query};
     improbable::ComponentSetInterest all_markets_interest;
     all_markets_interest.set_queries(const_queries);
-    trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+    trader_entity.Add<improbable::Interest>({{{4005, all_markets_interest}}});
 
     // Create production rules
     // 1 food + 1 tool (10% break change) = 2 wood
@@ -1163,7 +1162,7 @@ private:
     worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, fertilizer_query, inventory_query};
     improbable::ComponentSetInterest all_markets_interest;
     all_markets_interest.set_queries(const_queries);
-    trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+    trader_entity.Add<improbable::Interest>({{{4005, all_markets_interest}}});
 
     // Create production rules
     // 1 food  = 1 fert (50% succeed chance)
@@ -1199,7 +1198,7 @@ private:
     worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, tools_query, inventory_query};
     improbable::ComponentSetInterest all_markets_interest;
     all_markets_interest.set_queries(const_queries);
-    trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+    trader_entity.Add<improbable::Interest>({{{4005, all_markets_interest}}});
 
     // Create production rules
     // 1 food + 1 tools  = 4 ore
@@ -1243,7 +1242,7 @@ private:
     worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, tools_query, ore_query, metal_query, inventory_query};
     improbable::ComponentSetInterest all_markets_interest;
     all_markets_interest.set_queries(const_queries);
-    trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+    trader_entity.Add<improbable::Interest>({{{4005, all_markets_interest}}});
 
     // Create production rules
     // 1 food + 1 ore + 1 tools  = 1 metal [REPEATABLE]
@@ -1294,7 +1293,7 @@ private:
     worker::List<improbable::ComponentSetInterest_Query> const_queries = {food_query, tools_query, metal_query, inventory_query};
     improbable::ComponentSetInterest all_markets_interest;
     all_markets_interest.set_queries(const_queries);
-    trader_entity.Add<improbable::Interest>({{{50, all_markets_interest}}});
+    trader_entity.Add<improbable::Interest>({{{4005, all_markets_interest}}});
 
     // Create production rules
     // 1 food + 1 metal  = 1 tools [REPEATABLE]
