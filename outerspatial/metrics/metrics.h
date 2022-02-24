@@ -95,7 +95,7 @@ private:
     using RegisterTraderCommand = market::RegisterCommandComponent::Commands::RegisterCommand;
     view.OnCommandResponse<RegisterTraderCommand>(
         [&](const worker::CommandResponseOp<RegisterTraderCommand>& op) {
-            if (op.StatusCode != worker::StatusCode::kSuccess || !op.Response->accepted()) {
+            if (op.StatusCode != worker::StatusCode::kSuccess) {
               // failed to register!
               return;
             }

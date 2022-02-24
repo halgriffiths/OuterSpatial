@@ -459,8 +459,7 @@ private:
 
             connection.SendCommandResponse<RequestShutdownCommand>(op.RequestId, {true});
 
-            // TODO: Delete entity as well (will there be a timing issue?)
-            //connection.SendDeleteEntityRequest(entity_id);
+            connection.SendDeleteEntityRequest(entity_id, {});
           });
       view.OnCommandRequest<RegisterTraderCommand>(
           [&](const worker::CommandRequestOp<RegisterTraderCommand>& op) {

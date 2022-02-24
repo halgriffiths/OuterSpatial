@@ -151,10 +151,10 @@ int main(int argc, char** argv) {
 
   connection.SendLogMessage(worker::LogLevel::kInfo, kLoggerName, "Connected successfully");
 
-  worker::View view{ComponentRegistry{}};
 
+  std::unique_ptr<worker::View> view = std::make_unique<worker::View>(ComponentRegistry{});
   bool is_connected = true;
-  view.OnDisconnect([&](const worker::DisconnectOp& op) {
+  view->OnDisconnect([&](const worker::DisconnectOp& op) {
     std::cerr << "[disconnect] " << op.Reason << std::endl;
     is_connected = false;
   });
@@ -162,7 +162,7 @@ int main(int argc, char** argv) {
   using AssignPartitionCommand = improbable::restricted::Worker::Commands::AssignPartition;
 
   // In real code, we would probably want to retry here.
-  view.OnCommandResponse<AssignPartitionCommand>(
+  view->OnCommandResponse<AssignPartitionCommand>(
       [&](const worker::CommandResponseOp<AssignPartitionCommand>& op) {
         if (op.StatusCode == worker::StatusCode::kSuccess) {
           connection.SendLogMessage(worker::LogLevel::kInfo, "Server",
@@ -175,7 +175,7 @@ int main(int argc, char** argv) {
         }
       });
 
-  view.OnAddComponent<improbable::restricted::Worker>(
+  view->OnAddComponent<improbable::restricted::Worker>(
       [&](worker::AddComponentOp<improbable::restricted::Worker> op) {
         connection.SendLogMessage(worker::LogLevel::kInfo, "Server",
                                   "Worker with ID " + op.Data.worker_id() + " connected.");
@@ -196,11 +196,11 @@ int main(int argc, char** argv) {
     requested_role = ChooseNewClassRandom(rng_gen);
     messages::RegisterRequest reg_req{messages::AgentType::AI_TRADER, requested_role};
     connection.SendCommandRequest<RegisterTraderCommand>(ah_id, reg_req, {1000});
-    ai_trader_ptr = std::make_shared<AITrader>(connection, view, ah_id, requested_role, 100, Log::INFO);
+    ai_trader_ptr = std::make_shared<AITrader>(connection, *view, ah_id, requested_role, 100, Log::INFO);
     connection.SendLogMessage(worker::LogLevel::kInfo, "AITraderWorkerStartup", "Creating new trader of type: " + RoleToString(requested_role));
     auto last_tick_time = std::chrono::steady_clock::now();
     while (ai_trader_ptr->status != DESTROYED) {
-      view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
+      view->Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
 
       ai_trader_ptr->PrintInventory();
       ai_trader_ptr->TickOnce();
@@ -209,7 +209,7 @@ int main(int argc, char** argv) {
       timedelta_ms = std::chrono::duration<double, std::milli>(t_now - last_tick_time)
           .count();  // Amount of time since last tick, in seconds
       while (timedelta_ms < TARGET_TICK_TIME_MS) {
-        view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
+        view->Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));
         t_now = std::chrono::steady_clock::now();
         timedelta_ms = std::chrono::duration<double, std::milli>(t_now - last_tick_time)
             .count();  // Amount of time since last tick, in milliseconds
@@ -219,8 +219,15 @@ int main(int argc, char** argv) {
 
     std::cout << "Worker destroyed! Creating replacement..." << std::endl;
     //terrible hack to give "shutdown confirmed" message time to send
+    ai_trader_ptr.reset();
     connection.AlphaFlush();
-    view.Process(connection.GetOpList(3000));
+
+    view.reset();
+    view = std::make_unique<worker::View>(ComponentRegistry{});
+    view->OnDisconnect([&](const worker::DisconnectOp& op) {
+      std::cerr << "[disconnect] " << op.Reason << std::endl;
+      is_connected = false;
+    });
   }
   return ErrorExitStatus;
 }

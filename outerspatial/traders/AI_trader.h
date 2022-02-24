@@ -203,9 +203,7 @@ void AITrader::MakeCallbacks() {
         if (op.StatusCode == worker::StatusCode::kSuccess) {
           if (op.Response->bankrupt()) {
             logger->Log(Log::INFO, "Bankrupt after production on tick " + std::to_string(ticks) + ", requesting shutdown");
-            messages::ShutdownRequest request = {id, role, 0, ticks};
-            connection.SendCommandRequest<RequestShutdownCommand>(auction_house_id, request, {});
-            status = PENDING_DESTRUCTION;
+            RequestShutdown();
             return;
           }
           auto useful_production = op.Response->useful_production_result();
@@ -214,13 +212,6 @@ void AITrader::MakeCallbacks() {
           UpdatePriceModelFromProduction(useful_production, wasted_production, consumption);
         } else {
           logger->Log(Log::ERROR, "RequestProductionCommand failed!");
-        }
-      });
-  view.OnCommandResponse<RequestShutdownCommand>(
-      [&](const worker::CommandResponseOp<RequestShutdownCommand>& op) {
-        if (op.StatusCode == worker::StatusCode::kSuccess && op.Response->ack()) {
-          status = DESTROYED;
-          return;
         }
       });
 }
@@ -327,7 +318,7 @@ void AITrader::SendOffer(AskOffer& offer) {
                             offer.quantity,
                             offer.unit_price};
   using MakeAskOffer = market::MakeOfferCommandComponent::Commands::MakeAskOffer;
-  logger->Log(Log::INFO, "Making bid offer: " + ToString(msg));
+  logger->Log(Log::INFO, "Making offer: " + ToString(msg));
   connection.SendCommandRequest<MakeAskOffer>(auction_house_id, msg, {});
 }
 void AITrader::SendOffer(BidOffer& offer) {
@@ -337,7 +328,7 @@ void AITrader::SendOffer(BidOffer& offer) {
                             offer.quantity,
                             offer.unit_price};
   using MakeBidOffer = market::MakeOfferCommandComponent::Commands::MakeBidOffer;
-  logger->Log(Log::INFO, "Making bid offer: " + ToString(msg));
+  logger->Log(Log::INFO, "Making offer: " + ToString(msg));
   connection.SendCommandRequest<MakeBidOffer>(auction_house_id, msg, {});
 }
 void AITrader::GenerateOffers(const std::string& commodity) {
@@ -463,7 +454,7 @@ std::pair<double, double> AITrader::ObserveTradingRange(const std::string& commo
 void AITrader::RequestShutdown() {
     using RequestShutdownCommand = market::RequestShutdownComponent::Commands::RequestShutdown;
     connection.SendCommandRequest<RequestShutdownCommand>(auction_house_id, {id, role, 0, ticks}, {});
-    status = PENDING_DESTRUCTION;
+    status = DESTROYED;
     logger->Log(Log::INFO, unique_name+std::string(" destroyed."));
 }
 
@@ -502,6 +493,7 @@ void AITrader::Tick() {
 }
 
 void AITrader::TickOnce() {
+    if (status == DESTROYED) return;
     using ProductionCommand = market::RequestProductionComponent::Commands::RequestProduction;
     view.Process(connection.GetOpList(100));
     if (status != ACTIVE) {
