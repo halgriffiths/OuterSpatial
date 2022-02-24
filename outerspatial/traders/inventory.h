@@ -18,8 +18,8 @@ public:
     double cost;
     CommodityBelief() : name("blank"), ideal(0), cost(0) {};
 
-    CommodityBelief(std::string& commodity_name, int ideal, double original_cost)
-    : name(std::move(commodity_name))
+    CommodityBelief(std::string commodity_name, int ideal, double original_cost)
+    : name(commodity_name)
     , ideal(ideal)
     , cost(original_cost) {}
 };

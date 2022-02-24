@@ -196,7 +196,7 @@ int main(int argc, char** argv) {
     requested_role = ChooseNewClassRandom(rng_gen);
     messages::RegisterRequest reg_req{messages::AgentType::AI_TRADER, requested_role};
     connection.SendCommandRequest<RegisterTraderCommand>(ah_id, reg_req, {1000});
-    ai_trader_ptr = std::make_shared<AITrader>(connection, *view, ah_id, requested_role, 100, Log::INFO);
+    ai_trader_ptr = std::make_shared<AITrader>(connection, *view, ah_id, requested_role, 1000, Log::INFO);
     connection.SendLogMessage(worker::LogLevel::kInfo, "AITraderWorkerStartup", "Creating new trader of type: " + RoleToString(requested_role));
     auto last_tick_time = std::chrono::steady_clock::now();
     while (ai_trader_ptr->status != DESTROYED) {

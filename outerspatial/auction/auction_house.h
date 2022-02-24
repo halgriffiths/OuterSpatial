@@ -484,7 +484,7 @@ private:
 
       view.OnCommandRequest<MakeBidOfferCommand>(
           [&](const worker::CommandRequestOp<MakeBidOfferCommand>& op) {
-            std::cout << "Bid Offer received from #" << op.EntityId << "/" << op.Request.sender_id() <<  std::endl;
+            std::cout << "Bid Offer received from #" << op.Request.sender_id() <<  std::endl;
             std::cout << op.Request.good() << ": " << op.Request.quantity() << "@" << op.Request.unit_price() << std::endl;
 
             BidOffer bid = {op.RequestId,
@@ -504,22 +504,32 @@ private:
           });
       view.OnCommandRequest<MakeAskOfferCommand>(
           [&](const worker::CommandRequestOp<MakeAskOfferCommand>& op) {
-            std::cout << "Bid Offer received from #" << op.EntityId << "/" << op.Request.sender_id() <<  std::endl;
+            std::cout << "Ask Offer received from #" << op.Request.sender_id() <<  std::endl;
             std::cout << op.Request.good() << ": " << op.Request.quantity() << "@" << op.Request.unit_price() << std::endl;
+            // Basic check for validity (more checking is done at resolution-time)
+            if (op.Request.quantity() <= 0) {
+              connection.SendCommandFailure<MakeAskOfferCommand>(op.RequestId, "Quantity offered must be > 0");
+            }
+            else if (op.Request.unit_price() <= 0) {
+              connection.SendCommandFailure<MakeAskOfferCommand>(op.RequestId, "Unit price must be > 0");
+            }
+            else if (known_commodities.count(op.Request.good()) != 1) {
+              connection.SendCommandFailure<MakeAskOfferCommand>(op.RequestId, "Unknown commodity: " + op.Request.good());
+            } else {
+              AskOffer ask = {op.RequestId,
+                              static_cast<int>(op.Request.sender_id()),
+                              op.Request.good(),
+                              op.Request.quantity(),
+                              op.Request.unit_price(),
+                              op.Request.expiry_time()};
+              AskResult result = {static_cast<int>(op.Request.sender_id()),
+                                  op.Request.good()};
+              ask_book_mutex.lock();
+              ask_book[op.Request.good()].push_back({ask, result});
+              ask_book_mutex.unlock();
 
-            AskOffer ask = {op.RequestId,
-                            static_cast<int>(op.Request.sender_id()),
-                            op.Request.good(),
-                            op.Request.quantity(),
-                            op.Request.unit_price(),
-                            op.Request.expiry_time()};
-            AskResult result = {static_cast<int>(op.Request.sender_id()),
-                                op.Request.good()};
-            ask_book_mutex.lock();
-            ask_book[op.Request.good()].push_back({ask, result});
-            ask_book_mutex.unlock();
-
-            connection.SendCommandResponse<MakeAskOfferCommand>(op.RequestId, {true});
+              connection.SendCommandResponse<MakeAskOfferCommand>(op.RequestId, {true});
+            }
           });
     }
     // Transaction functions
@@ -728,6 +738,8 @@ private:
         std::sort(bids.rbegin(), bids.rend()); // NOTE: Reversed order
         std::sort(asks.rbegin(), asks.rend());   // lowest selling price first
 
+        int num_bids = bids.size();
+        int num_asks = asks.size();
         int num_trades_this_tick = 0;
         double money_traded_this_tick = 0;
         double units_traded_this_tick = 0;
@@ -845,6 +857,7 @@ private:
             history.buy_prices.add(commodity, history.buy_prices.average(commodity, 1));
             history.prices.add(commodity, history.prices.average(commodity, 1));
         }
+        logger->Log(Log::INFO, std::to_string(num_trades_this_tick) + " trades resolved from " + std::to_string(num_asks) + "/" + std::to_string(num_bids) + " asks/bids");
 
     bid_book_mutex.unlock();
     ask_book_mutex.unlock();

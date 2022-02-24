@@ -99,8 +99,8 @@ private:
     void GenerateOffers(const std::string& commodity);
     BidOffer CreateBid(const std::string& commodity, int min_limit, int max_limit, double desperation = 0);
     AskOffer CreateAsk(const std::string& commodity, int min_limit);
-    void SendOffer(AskOffer& offer);
-    void SendOffer(BidOffer& offer);
+    void SendAskOffer(AskOffer& offer);
+    void SendBidOffer(BidOffer& offer);
     int DetermineBuyQuantity(const std::string& commodity, double bid_price);
     int DetermineSaleQuantity(const std::string& commodity);
 
@@ -311,7 +311,7 @@ double AITrader::QueryUnitSize(const std::string& commodity) {
   return inv->inv()[commodity].size();
 }
 
-void AITrader::SendOffer(AskOffer& offer) {
+void AITrader::SendAskOffer(AskOffer& offer) {
   messages::AskOffer msg = {id,
                             offer.commodity,
                             offer.expiry_ms,
@@ -321,7 +321,7 @@ void AITrader::SendOffer(AskOffer& offer) {
   logger->Log(Log::INFO, "Making offer: " + ToString(msg));
   connection.SendCommandRequest<MakeAskOffer>(auction_house_id, msg, {});
 }
-void AITrader::SendOffer(BidOffer& offer) {
+void AITrader::SendBidOffer(BidOffer& offer) {
   messages::BidOffer msg = {id,
                             offer.commodity,
                             offer.expiry_ms,
@@ -336,7 +336,7 @@ void AITrader::GenerateOffers(const std::string& commodity) {
     if (surplus >= 1) {
         auto offer = CreateAsk(commodity, 1);
         if (offer.quantity > 0) {
-            SendOffer(offer);
+            SendAskOffer(offer);
         }
     }
 
@@ -358,7 +358,7 @@ void AITrader::GenerateOffers(const std::string& commodity) {
         if (max_limit > 0)
         {
             int min_limit = ( Query(commodity) == 0) ? 1 : 0;
-//            logger->Log(Log::DEBUG, "Considering bid for "+commodity + std::string(" - Current shortage = ") + std::to_string(shortage));
+            logger->Log(Log::DEBUG, "Considering bid for "+commodity + std::string(" - Current shortage = ") + std::to_string(shortage));
 
             double desperation = 1;
             double days_savings = money / IDLE_TAX;
@@ -366,7 +366,7 @@ void AITrader::GenerateOffers(const std::string& commodity) {
             desperation *= 1 - (0.4*(fulfillment - 0.5))/(1 + 0.4*std::abs(fulfillment-0.5));
             auto offer = CreateBid(commodity, min_limit, max_limit, desperation);
             if (offer.quantity > 0) {
-                SendOffer(offer);
+                SendBidOffer(offer);
             }
         }
     }
@@ -520,15 +520,32 @@ CommodityBeliefs AITrader::SetDefaultCommodityBeliefs(messages::AIRole assigned_
     initial_beliefs.InitializeBelief("fertilizer", 6, view.Entities[auction_house_id].Get<market::FertilizerMarket>()->listing().price_info().recent_price());
     break;
   case messages::AIRole::WOODCUTTER:
+    initial_beliefs.InitializeBelief("food", 6, view.Entities[auction_house_id].Get<market::FoodMarket>()->listing().price_info().recent_price());
+    initial_beliefs.InitializeBelief("tools", 2, view.Entities[auction_house_id].Get<market::ToolsMarket>()->listing().price_info().recent_price());
+    initial_beliefs.InitializeBelief("wood", 0, view.Entities[auction_house_id].Get<market::WoodMarket>()->listing().price_info().recent_price());
     break;
   case messages::AIRole::COMPOSTER:
+    initial_beliefs.InitializeBelief("food", 6, view.Entities[auction_house_id].Get<market::FoodMarket>()->listing().price_info().recent_price());
+    initial_beliefs.InitializeBelief("fertilizer", 0, view.Entities[auction_house_id].Get<market::FertilizerMarket>()->listing().price_info().recent_price());
     break;
   case messages::AIRole::MINER:
+    initial_beliefs.InitializeBelief("food", 6, view.Entities[auction_house_id].Get<market::FoodMarket>()->listing().price_info().recent_price());
+    initial_beliefs.InitializeBelief("tools", 2, view.Entities[auction_house_id].Get<market::ToolsMarket>()->listing().price_info().recent_price());
+    initial_beliefs.InitializeBelief("ore", 0, view.Entities[auction_house_id].Get<market::OreMarket>()->listing().price_info().recent_price());
     break;
   case messages::AIRole::REFINER:
+    initial_beliefs.InitializeBelief("food", 6, view.Entities[auction_house_id].Get<market::FoodMarket>()->listing().price_info().recent_price());
+    initial_beliefs.InitializeBelief("tools", 2, view.Entities[auction_house_id].Get<market::ToolsMarket>()->listing().price_info().recent_price());
+    initial_beliefs.InitializeBelief("metal", 0, view.Entities[auction_house_id].Get<market::MetalMarket>()->listing().price_info().recent_price());
+    initial_beliefs.InitializeBelief("ore", 10, view.Entities[auction_house_id].Get<market::OreMarket>()->listing().price_info().recent_price());
     break;
   case messages::AIRole::BLACKSMITH:
+    initial_beliefs.InitializeBelief("food", 6, view.Entities[auction_house_id].Get<market::FoodMarket>()->listing().price_info().recent_price());
+    initial_beliefs.InitializeBelief("tools", 0, view.Entities[auction_house_id].Get<market::ToolsMarket>()->listing().price_info().recent_price());
+    initial_beliefs.InitializeBelief("metal", 10, view.Entities[auction_house_id].Get<market::MetalMarket>()->listing().price_info().recent_price());
     break;
+  default:
+    break; //noop
   }
   return initial_beliefs;
 }
