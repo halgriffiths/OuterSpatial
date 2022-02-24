@@ -155,7 +155,7 @@ void AITrader::MakeCallbacks() {
   using RequestProductionCommand = market::RequestProductionComponent::Commands::RequestProduction;
   view.OnCommandResponse<RegisterTraderCommand>(
       [&](const worker::CommandResponseOp<RegisterTraderCommand>& op) {
-        if (op.StatusCode != worker::StatusCode::kSuccess || !op.Response->accepted()) {
+        if (op.StatusCode != worker::StatusCode::kSuccess) {
           status = TraderStatus::PENDING_DESTRUCTION;
           RequestShutdown();
           return;

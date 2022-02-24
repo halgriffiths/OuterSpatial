@@ -478,9 +478,7 @@ private:
 
           bool result = RegisterNewAgent(op);
           if (!result) {
-            messages::RegisterResponse req_res;
-            req_res.set_accepted(false);
-            connection.SendCommandResponse<RegisterTraderCommand>(op.RequestId, req_res);
+            connection.SendCommandFailure<RegisterTraderCommand>(op.RequestId, "Auction House failed to create trader entities");
             connection.SendLogMessage(worker::LogLevel::kWarn, "AuctionHouse",
                                       "Failed to register new" + req_type +"trader with ID #" + std::to_string(result));
           }});
@@ -946,7 +944,6 @@ private:
 
       // Send successful response
       messages::RegisterResponse req_res;
-      req_res.set_accepted(true);
       req_res.set_entity_id(entity_id);
       req_res.set_assigned_role(assigned_role);
       worker::List<commodity::Commodity> commodities;
