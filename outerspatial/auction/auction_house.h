@@ -1195,7 +1195,7 @@ private:
     trader_entity.Add<trader::AIBuildings>({{lumberyard1, lumberyard2}, 20});
     // Add starting inventory
     ::worker::Map<std::string, ::trader::InventoryItem> starting_inv = {
-        {"food", {known_commodities["food"].size, 1}},
+        {"food", {known_commodities["food"].size, 2}},
         {"tools", {known_commodities["tools"].size, 1}},
         {"wood", {known_commodities["wood"].size, 0}},
     };
@@ -1231,7 +1231,7 @@ private:
     trader_entity.Add<trader::AIBuildings>({{composter1}, 20});
     // Add starting inventory
     ::worker::Map<std::string, ::trader::InventoryItem> starting_inv = {
-        {"food", {known_commodities["food"].size, 1}},
+        {"food", {known_commodities["food"].size, 2}},
         {"fertilizer", {known_commodities["fertilizer"].size, 0}}
     };
     trader_entity.Add<trader::Inventory>({500, starting_inv, 20});
@@ -1272,7 +1272,7 @@ private:
     trader_entity.Add<trader::AIBuildings>({{mine1, mine2}, 20});
     // Add starting inventory
     ::worker::Map<std::string, ::trader::InventoryItem> starting_inv = {
-        {"food", {known_commodities["food"].size, 1}},
+        {"food", {known_commodities["food"].size, 2}},
         {"tools", {known_commodities["tools"].size, 1}},
         {"ore", {known_commodities["ore"].size, 0}},
     };
@@ -1321,7 +1321,7 @@ private:
     trader_entity.Add<trader::AIBuildings>({{smelter1, smelter2, smelter3}, 20});
     // Add starting inventory
     ::worker::Map<std::string, ::trader::InventoryItem> starting_inv = {
-        {"food", {known_commodities["food"].size, 1}},
+        {"food", {known_commodities["food"].size, 2}},
         {"tools", {known_commodities["tools"].size, 1}},
         {"ore", {known_commodities["ore"].size, 1}},
         {"metal", {known_commodities["metal"].size, 0}}
@@ -1360,7 +1360,7 @@ private:
     trader_entity.Add<trader::AIBuildings>({{forge1}, 20});
     // Add starting inventory
     ::worker::Map<std::string, ::trader::InventoryItem> starting_inv = {
-        {"food", {known_commodities["food"].size, 1}},
+        {"food", {known_commodities["food"].size, 2}},
         {"tools", {known_commodities["tools"].size, 0}},
         {"metal", {known_commodities["metal"].size, 1}},
     };

@@ -194,7 +194,7 @@ int main(int argc, char** argv) {
   connection.SendCommandRequest<AssignPartitionCommand>(
       connection.GetWorkerEntityId(), {auctionhousePartitionId}, /* default timeout */ {});
 
-  const int TARGET_TICK_TIME_MS = 500;
+  const int TARGET_TICK_TIME_MS = 10;
 
   auto AH_ptr = std::make_shared<AuctionHouse>(connection, view, 10, TARGET_TICK_TIME_MS, Log::INFO);
   auto last_tick_time = std::chrono::steady_clock::now();

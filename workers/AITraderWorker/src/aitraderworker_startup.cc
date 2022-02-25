@@ -186,7 +186,7 @@ int main(int argc, char** argv) {
   int ah_id = 10;
   auto rng_gen = std::mt19937(std::random_device()());
 
-  const int TARGET_TICK_TIME_MS = 500;
+  const int TARGET_TICK_TIME_MS = 50;
   int timedelta_ms;
 
   std::shared_ptr<AITrader> ai_trader_ptr;
