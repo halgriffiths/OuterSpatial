@@ -71,24 +71,30 @@ private:
         std::cout << "Not initialised yet!" << std::endl;
         return;
       }
-      std::cout << "== SUMMARY ==" << std::endl;
+        std::cout << std::fixed;
+        std::cout << std::setprecision(2);
+
+        std::cout << "== PRICES ==" << std::endl;
       for (auto& good : tracked_goods) {
-        std::cout << "# " << good;
+        std::cout  << good << std::endl;
         if (local_history.exists(good)) {
-          std::cout << "Price (avg): " << local_history.prices.most_recent[good] << " (" << local_history.prices.t_average(good, -1) << ")" << std::endl;;
+          std::cout << "\tPrice (avg): $" << local_history.prices.most_recent[good] << " ($" << local_history.prices.t_average(good, -1) << ")";
+          std::cout << "\tNet supply (vol): " << local_history.net_supply.most_recent[good] << " (" << local_history.trades.most_recent[good] << ")" << std::endl;
         } else {
           std::cout << "Good " << good << " not found in local history\n";
         }
       }
       auto data = view.Entities[auction_house_id].Get<market::DemographicInfo>();
       if (data) {
+        std::cout << "== DEMOGRAPHICS ==" << std::endl;
         for (auto& item : data->role_counts()) {
-          std::cout << "# " << RoleToString(item.first) << ": " << item.second;
+          std::cout << "\t" << RoleToString(item.first) << ": " << item.second;
         }
         double average_age = data->average_age_ticks();
         int num_deaths = data->total_deaths();
-        std::cout << "Total deaths (average age): " << num_deaths << average_age << std::endl;
+        std::cout << "Total deaths (average age): " << num_deaths << " (" << average_age << ")" << std::endl;
       }
+      std::cout << std::endl;
     }
 
   void MakeCallbacks() {

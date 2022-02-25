@@ -75,6 +75,7 @@ private:
     // debug info
     int num_deaths;
     int total_age;
+    worker::Map<messages::AIRole, int> demographics = {};
 
     int TICK_TIME_MS; //ms
     std::atomic<bool> queue_active = true;
@@ -88,7 +89,6 @@ private:
     int ticks = 0;
     std::mt19937 rng_gen = std::mt19937(std::random_device()());
     std::map<std::string, Commodity> known_commodities;
-    std::map<std::string, int> demographics = {};
 
     std::map<std::string, std::vector<std::pair<BidOffer, BidResult>>> bid_book = {};
     std::map<std::string, std::vector<std::pair<AskOffer, AskResult>>> ask_book = {};
@@ -110,7 +110,7 @@ public:
     }
 
     std::pair<double, std::map<std::string, int>> GetDemographics() const {
-        return {(num_deaths > 0) ? total_age / num_deaths : 0, demographics};
+        return {0, {{{""}, 0}}};
     }
 
     void Shutdown(){
@@ -311,7 +311,7 @@ public:
         ResolveOffers(item.first);
       }
       logger->Log(Log::INFO, "Net spread profit for tick" + std::to_string(ticks) + ": " + std::to_string(spread_profit));
-
+      UpdateDemographicInfoComponent();
       UpdatePriceInfoComponent<market::FoodMarket>("food");
       UpdatePriceInfoComponent<market::WoodMarket>("wood");
       UpdatePriceInfoComponent<market::FertilizerMarket>("fertilizer");
@@ -422,7 +422,7 @@ private:
       AH_entity.Add<market::MakeOfferCommandComponent>({});
       AH_entity.Add<market::RequestProductionComponent>({});
       AH_entity.Add<market::RequestShutdownComponent>({});
-      AH_entity.Add<market::DemographicInfo>({{},
+      AH_entity.Add<market::DemographicInfo>({demographics,
                                               0,
                                               0.0});
       AH_entity.Add<market::FoodMarket>({{{
@@ -524,9 +524,8 @@ private:
       view.OnCommandRequest<RequestShutdownCommand>(
           [&](const worker::CommandRequestOp<RequestShutdownCommand>& op) {
             worker::EntityId entity_id = op.Request.entity_id();
-            std::string role = RoleToString(op.Request.role());
             int age_ticks = op.Request.age_ticks();
-            demographics[role] -= 1;
+            DecrementDemographic(op.Request.role());
             num_deaths += 1;
             total_age += age_ticks;
 
@@ -559,9 +558,6 @@ private:
 
       view.OnCommandRequest<MakeBidOfferCommand>(
           [&](const worker::CommandRequestOp<MakeBidOfferCommand>& op) {
-            std::cout << "Bid Offer received from #" << op.Request.sender_id() <<  std::endl;
-            std::cout << op.Request.good() << ": " << op.Request.quantity() << "@" << op.Request.unit_price() << std::endl;
-
             BidOffer bid = {op.RequestId,
                             static_cast<int>(op.Request.sender_id()),
                             op.Request.good(),
@@ -579,8 +575,6 @@ private:
           });
       view.OnCommandRequest<MakeAskOfferCommand>(
           [&](const worker::CommandRequestOp<MakeAskOfferCommand>& op) {
-            std::cout << "Ask Offer received from #" << op.Request.sender_id() <<  std::endl;
-            std::cout << op.Request.good() << ": " << op.Request.quantity() << "@" << op.Request.unit_price() << std::endl;
             // Basic check for validity (more checking is done at resolution-time)
             if (op.Request.quantity() <= 0) {
               connection.SendCommandFailure<MakeAskOfferCommand>(op.RequestId, "Quantity offered must be > 0");
@@ -1046,39 +1040,29 @@ private:
       connection.SendCommandResponse<RegisterTraderCommand>(op.RequestId, req_res);
       connection.SendLogMessage(worker::LogLevel::kInfo, "AuctionHouse",
       "Registered new" + RoleToString(assigned_role) +"trader with ID #" + std::to_string(entity_id));
+      IncrementDemographic(assigned_role);
       return true;
     }
 
   void CreateMonitorEntity(worker::EntityId monitor_entity_id) {
     worker::Entity monitor_entity;
 
-    // Market component IDs start at 3010 and increment to 3015
-    std::vector<improbable::ComponentSetInterest_Query> all_queries;
-    for (auto& good : known_commodities) {
-      improbable::ComponentSetInterest_QueryConstraint my_constraint;
-      my_constraint.set_component_constraint(
-          {3001});  // only markets have this MakeOfferCommandComponent
-      improbable::ComponentSetInterest_Query my_query;
-      my_query.set_constraint(my_constraint);
+    // Interest for auction house markets
+    improbable::ComponentSetInterest_QueryConstraint market_constraint;
+    market_constraint.set_component_constraint({3001});  // only markets have this MakeOfferCommandComponent
+    improbable::ComponentSetInterest_Query market_query;
+    market_query.set_constraint(market_constraint).set_result_component_set_id({3027}); // All markets component set
 
-      my_query.set_result_component_id(
-          {static_cast<unsigned int>(good.second.market_component_id)});
-      all_queries.push_back(my_query);
-    }
-    {
-      // Also have interest in Demographics component
-      improbable::ComponentSetInterest_QueryConstraint my_constraint;
-      my_constraint.set_component_constraint(
-          {3016});  // only markets have this MakeOfferCommandComponent
-      improbable::ComponentSetInterest_Query my_query;
-      my_query.set_constraint(my_constraint);
+    // Also have interest in Demographics component
+    improbable::ComponentSetInterest_QueryConstraint demographics_constraint;
+    demographics_constraint.set_component_constraint(
+        {3016});  // only markets have this MakeOfferCommandComponent
+    improbable::ComponentSetInterest_Query demographics_query;
+    demographics_query.set_constraint(demographics_constraint);
+    demographics_query.set_result_component_id({3016});  // DemographicInfo component Id
 
-      my_query.set_result_component_id({3016});  // DemographicInfo component Id
-      all_queries.push_back(my_query);
-    }
 
-    worker::List<improbable::ComponentSetInterest_Query> const_queries;
-    const_queries.insert(const_queries.begin(), all_queries.begin(), all_queries.end());
+    worker::List<improbable::ComponentSetInterest_Query> const_queries({market_query, demographics_query});
 
     improbable::ComponentSetInterest all_markets_interest;
     all_markets_interest.set_queries(const_queries);
