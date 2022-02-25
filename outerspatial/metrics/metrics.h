@@ -76,10 +76,9 @@ private:
 
         std::cout << "== PRICES ==" << std::endl;
       for (auto& good : tracked_goods) {
-        std::cout  << good << std::endl;
         if (local_history.exists(good)) {
-          std::cout << "\tPrice (avg): $" << local_history.prices.most_recent[good] << " ($" << local_history.prices.t_average(good, -1) << ")";
-          std::cout << "\tNet supply (vol): " << local_history.net_supply.most_recent[good] << " (" << local_history.trades.most_recent[good] << ")" << std::endl;
+          std::cout << "\t" << good << " (avg): $" << local_history.prices.t_average(good, 1000) << " ($" << local_history.prices.t_average(good, 1000) << ")";
+          std::cout << "\tNet supply (vol): " << local_history.net_supply.t_average(good, 1000) << " (" << local_history.trades.t_average(good, 1000) << ")" << std::endl;
         } else {
           std::cout << "Good " << good << " not found in local history\n";
         }
@@ -92,7 +91,7 @@ private:
         }
         double average_age = data->average_age_ticks();
         int num_deaths = data->total_deaths();
-        std::cout << "Total deaths (average age): " << num_deaths << " (" << average_age << ")" << std::endl;
+        std::cout << "\nTotal deaths (average age): " << num_deaths << " (" << average_age << ")" << std::endl;
       }
       std::cout << std::endl;
     }
@@ -128,6 +127,7 @@ private:
           market::FoodMarket::Update update = op.Update;
           local_history.prices.add(commodity, update.listing()->price_info().curr_price());
           local_history.net_supply.add(commodity, update.listing()->price_info().curr_net_supply());
+          local_history.trades.add(commodity, update.listing()->price_info().recent_trade_volume());
         });
     view.OnComponentUpdate<market::WoodMarket>(
         [&](const worker::ComponentUpdateOp<market::WoodMarket >& op) {
@@ -136,6 +136,7 @@ private:
           market::WoodMarket::Update update = op.Update;
           local_history.prices.add(commodity, update.listing()->price_info().curr_price());
           local_history.net_supply.add(commodity, update.listing()->price_info().curr_net_supply());
+          local_history.trades.add(commodity, update.listing()->price_info().recent_trade_volume());
         });
     view.OnComponentUpdate<market::FertilizerMarket>(
         [&](const worker::ComponentUpdateOp<market::FertilizerMarket >& op) {
@@ -144,6 +145,7 @@ private:
           market::FertilizerMarket::Update update = op.Update;
           local_history.prices.add(commodity, update.listing()->price_info().curr_price());
           local_history.net_supply.add(commodity, update.listing()->price_info().curr_net_supply());
+          local_history.trades.add(commodity, update.listing()->price_info().recent_trade_volume());
         });
     view.OnComponentUpdate<market::OreMarket>(
         [&](const worker::ComponentUpdateOp<market::OreMarket >& op) {
@@ -152,6 +154,7 @@ private:
           market::OreMarket::Update update = op.Update;
           local_history.prices.add(commodity, update.listing()->price_info().curr_price());
           local_history.net_supply.add(commodity, update.listing()->price_info().curr_net_supply());
+          local_history.trades.add(commodity, update.listing()->price_info().recent_trade_volume());
         });
     view.OnComponentUpdate<market::MetalMarket>(
         [&](const worker::ComponentUpdateOp<market::MetalMarket >& op) {
@@ -160,6 +163,7 @@ private:
           market::MetalMarket::Update update = op.Update;
           local_history.prices.add(commodity, update.listing()->price_info().curr_price());
           local_history.net_supply.add(commodity, update.listing()->price_info().curr_net_supply());
+          local_history.trades.add(commodity, update.listing()->price_info().recent_trade_volume());
         });
     view.OnComponentUpdate<market::ToolsMarket>(
         [&](const worker::ComponentUpdateOp<market::ToolsMarket >& op) {
@@ -168,6 +172,7 @@ private:
           market::ToolsMarket::Update update = op.Update;
           local_history.prices.add(commodity, update.listing()->price_info().curr_price());
           local_history.net_supply.add(commodity, update.listing()->price_info().curr_net_supply());
+          local_history.trades.add(commodity, update.listing()->price_info().recent_trade_volume());
         });
   }
 };

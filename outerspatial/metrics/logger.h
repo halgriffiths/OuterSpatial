@@ -85,7 +85,6 @@ public:
        , conn(connection){ };
 
   void LogInternal(std::string raw_message) const override {
-    std::fwrite(raw_message.c_str(), 1, raw_message.size()+1, stdout);
     conn.SendLogMessage(worker::LogLevel::kWarn, name, raw_message);
   }
 };
