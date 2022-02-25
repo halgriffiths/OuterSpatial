@@ -1,23 +1,21 @@
-# SpatialOS C++ Blank project
+# OuterSpatial
+This is an implementation of my agent-based economy simulation "[OuterSpatial](https://github.com/halgriffiths/OuterSpatialEngine/)" using SpatialOS.
+That project served as a prototype for the mechanics underlying the simulation, but ran locally on a single machine which limited its performance (bottlenecking) and fun (single-player only).
 
-This is a SpatialOS project which can serve as a template for building
-SpatialOS workers using the C++ SDK. It uses CMake as the build system. If
-you're new to SpatialOS, have a look at [Introduction to the C++ worker SDK](https://docs.improbable.io/reference/latest/cppsdk/introduction).
+This new project aims to rectify both those issues, and the pipe-dream is for this project to be a fully-playable, persistent MMO game based on trading and idle game mechanics.
 
-## About managed and external workers
+#### Speculative road map:
+ - [x] Non-spatialOS tick-based prototype
+ - [x] Non-spatialOS multithreaded asynchronous prototype
+ - [x] Economy mechanics ported to SpatialOS
+ - [ ] AI behaviour ported and tweaked for SpatialOS
+ - [ ] Live terminal plotting
+ - [ ] Primitive TUI
+ - [ ] Implement human-players with associated UI elements
+ - [ ] QA testing begins
+ - [ ] Idle-game gameplay elements
 
-Have a look at the [Glossary entry for
-Workers](https://docs.improbable.io/reference/latest/shared/glossary#worker) for a complete discussion and examples.
-
-## Dependencies
-
-This project requires the following software to be installed:
-- [CMake](https://cmake.org/) 3.7+
-- _(Windows)_ Visual Studio 2017 or above.
-- _(macOS)_ Xcode
-- _(Linux)_ `gcc` / `clang` and `make` (for the "Unix Makefiles" CMake project generator)
-
-## Quick start
+## SpatialOS Quick start
 
 The build scripts (`build.json`) for each worker:
 
@@ -144,18 +142,3 @@ deployment name and have a login token:
 ```
 spatial local worker launch External cloud <deployment-name> <login-token>
 ```
-
-## Integrating with an existing project
-
-If you have an existing project, to add a new C++ worker to it:
-
-  1. Decide whether the worker you're adding will be used as a managed or
-    external worker.
-  2. Copy the corresponding directory (e.g. `workers/Managed`) into the workers
-    directory of your existing project.
-  3. In the worker project `CMakeLists.txt` set `SCHEMA_SOURCE_DIR` and
-    `WORKER_SDK_DIR` to point to the CMake projects in your project that
-    generate the corresponding targets and if the targets have different names
-    from `Schema` and `WorkerSdk` also rename those.
-  4. Add it to the `workers` definition in your SpatialOS launch configuration
-    (e.g. `default_launch.json`)
