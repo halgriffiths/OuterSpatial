@@ -14,6 +14,12 @@ This new project aims to rectify both those issues, and the pipe-dream is for th
  - [ ] Implement human-players with associated UI elements
  - [ ] QA testing begins
  - [ ] Idle-game gameplay elements
+## AI traders
+An important restriction I wanted to give myself was that the AI actors should have no additional information/assistance other than what human players have. As a result, each AI trader is completely independent and bases all of its decisions entirely on:
+ - Its own inventory & liquidity
+ - Its own personal understanding of a commodities' "worth"
+ - The current price of a commodity
+ - It's remembered history of how its previous trades have done
 
 ## SpatialOS Quick start
 
