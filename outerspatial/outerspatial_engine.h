@@ -38,56 +38,11 @@
 //    return trader;
 //}
 
-int RandomChoice(int num_weights, std::vector<double>& weights, std::mt19937& gen) {
-    double sum_of_weight = 0;
-    for(int i=0; i<num_weights; i++) {
-        sum_of_weight += weights[i];
-    }
-    std::uniform_real_distribution<> random(0, sum_of_weight);
-    double rnd = random(gen);
-    for(int i=0; i<num_weights; i++) {
-        if(rnd < weights[i])
-            return i;
-        rnd -= weights[i];
-    }
-    return -1;
-}
 
-std::string GetProducer(std::string& commodity) {
-    if (commodity == "food") {
-        return "farmer";
-    } else if (commodity == "fertilizer") {
-        return "composter";
-    } else if (commodity == "wood") {
-        return "woodcutter";
-    } else if (commodity == "ore") {
-        return "miner";
-    } else if (commodity == "metal") {
-        return "refiner";
-    } else if (commodity == "tools") {
-        return "blacksmith";
-    } else {
-        return "null";
-    }
-}
 
 messages::AIRole ChooseNewClassRandom(std::mt19937& gen) {
   std::uniform_int_distribution<> random_job(2, 4); // hardcoded to match messages.schema
   return static_cast<messages::AIRole>(random_job(gen));
-}
-
-std::string ChooseNewClassWeighted(std::vector<std::string>& tracked_goods, std::shared_ptr<AuctionHouse>& auction_house, std::mt19937& gen) {
-    std::vector<double> weights;
-    double gamma = -0.02;
-    //auction house ticks at 10ms
-    int lookback_time_ms = 1000;
-    for (auto& commodity : tracked_goods) {
-        double supply = auction_house->t_AverageHistoricalSupply(commodity, lookback_time_ms);
-//        double supply = auction_house->AverageHistoricalAsks(commodity, 100) - auction_house->AverageHistoricalBids(commodity, 100);
-        weights.push_back(std::exp(gamma*supply));
-    }
-    int choice = RandomChoice((int) weights.size(),  weights, gen);
-    return GetProducer(tracked_goods[choice]);
 }
 
 
