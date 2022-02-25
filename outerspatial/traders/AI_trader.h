@@ -150,6 +150,7 @@ void AITrader::MakeCallbacks() {
         }
         id = op.Response->entity_id();
         // Name accordingly
+        role = op.Response->assigned_role();
         class_name = RoleToString(op.Response->assigned_role());
         unique_name = class_name + std::to_string(id);
         // Re-initialize logger

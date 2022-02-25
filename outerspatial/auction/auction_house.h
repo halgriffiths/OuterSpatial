@@ -21,6 +21,42 @@
 
 #include <thread>
 
+
+namespace {
+  messages::AIRole RandomChoice(std::vector<std::pair<messages::AIRole, double>>& weights, std::mt19937& gen) {
+    double sum_of_weight = 0;
+    int num_weights = weights.size();
+    for(int i=0; i<num_weights; i++) {
+      sum_of_weight += weights[i].second;
+    }
+    std::uniform_real_distribution<> random(0, sum_of_weight);
+    double rnd = random(gen);
+    for(int i=0; i<num_weights; i++) {
+      if(rnd < weights[i].second)
+        return weights[i].first;
+      rnd -= weights[i].second;
+    }
+    return messages::AIRole::NONE;
+  }
+
+  messages::AIRole GetProducer(const std::string& commodity) {
+    if (commodity == "food") {
+      return messages::AIRole::FARMER;
+    } else if (commodity == "fertilizer") {
+      return messages::AIRole::COMPOSTER;
+    } else if (commodity == "wood") {
+      return messages::AIRole::WOODCUTTER;
+    } else if (commodity == "ore") {
+      return messages::AIRole::MINER;
+    } else if (commodity == "metal") {
+      return messages::AIRole::REFINER;
+    } else if (commodity == "tools") {
+      return messages::AIRole::BLACKSMITH;
+    } else {
+      return messages::AIRole::NONE;
+    }
+  }
+}
 namespace ah {
   enum RegisterProgress {
     NONE,
@@ -109,6 +145,44 @@ public:
         ask_book_mutex.unlock();
     }
 
+  messages::AIRole ChooseNewClassWeighted() {
+    std::vector<std::pair<messages::AIRole, double>> weights;
+    double gamma = -0.02;
+    //auction house ticks at 10ms
+    int lookback_time_ms = 100*TICK_TIME_MS;
+    for (auto& commodity : known_commodities) {
+      double supply = t_AverageHistoricalSupply(commodity.first, lookback_time_ms);
+//        double supply = auction_house->AverageHistoricalAsks(commodity, 100) - auction_house->AverageHistoricalBids(commodity, 100);
+      weights.emplace_back(GetProducer(commodity.first), std::exp(gamma*supply));
+    }
+    return RandomChoice(weights, rng_gen);
+  }
+
+    void IncrementDemographic(messages::AIRole role) {
+      if (demographics.count(role) != 1) {
+        demographics[role] = 1;
+      } else {
+        demographics[role] += 1;
+      }
+    }
+    void DecrementDemographic(messages::AIRole role) {
+      if (demographics.count(role) != 1) {
+        demographics[role] = 0;
+      } else {
+        demographics[role] -= 1;
+      }
+    }
+    void UpdateDemographicInfoComponent() {
+      market::DemographicInfo::Update update_dems;
+      update_dems.set_total_deaths(num_deaths);
+      update_dems.set_role_counts(demographics);
+      if (num_deaths > 0) {
+        update_dems.set_average_age_ticks(total_age/num_deaths);
+      } else {
+        update_dems.set_average_age_ticks(0);
+      }
+      connection.SendComponentUpdate<market::DemographicInfo>(id, update_dems);
+    }
   template <class Tmarket>
   void UpdatePriceInfoComponent(const std::string& commodity) {
       static_assert(std::is_base_of<::worker::detail::ComponentMetaclass, Tmarket>::value, "T must inherit from ComponentMetaclass");
@@ -1020,7 +1094,7 @@ private:
   messages::AIRole CreateAITraderEntity(worker::EntityId trader_entity_id, messages::AIRole requested_role) {
     worker::Entity trader_entity;
     if (requested_role == messages::AIRole::NONE) {
-      requested_role = messages::AIRole::FARMER;
+      requested_role = ChooseNewClassWeighted();
     }
     switch (requested_role) {
     case messages::AIRole::FARMER:
