@@ -54,7 +54,7 @@ private:
     double tracked_costs = 0;
     std::map<std::string, std::vector<double>> observed_trading_range;
     CommodityBeliefs commodity_beliefs;
-    
+
     int external_lookback = 50*TICK_TIME_MS; //history range (num ticks)
     int internal_lookback = 50; //history range (num trades)
 
@@ -108,8 +108,8 @@ public:
     int Query(const std::string& name);
     double QueryCost(const std::string& name);
 
-    double GetIdleTax() { return view.Entities[id].Get<trader::AIBuildings>()->idle_tax();};
-    double QueryMoney() { return view.Entities[id].Get<trader::Inventory>()->cash();};
+    double GetIdleTax();
+    double QueryMoney();
 protected:
 
     // EXTERNAL SETTERS (i.e. for auction house & role only)
@@ -251,6 +251,22 @@ int AITrader::QuerySurplus(const std::string& commodity) {
 int AITrader::QueryShortage(const std::string& commodity) {
   return std::max(0, commodity_beliefs.GetIdeal(commodity) - Query(commodity));
 }
+double AITrader::GetIdleTax() {
+  auto res = view.Entities[id].Get<trader::AIBuildings>();
+  if (!res) {
+    logger->Log(Log::ERROR, "Failed to get Idle Tax from AIBuildings!");
+    return 0;
+  }
+  return res->idle_tax();
+}
+double AITrader::QueryMoney() {
+  auto res =  view.Entities[id].Get<trader::Inventory>();
+  if (!res) {
+    logger->Log(Log::ERROR, "Failed to get cash from Inventory!");
+    return 0;
+  }
+  return res->cash();
+}
 double AITrader::QuerySpace() {
   auto inv = view.Entities[id].Get<trader::Inventory>();
   if (!inv) {
@@ -387,7 +403,10 @@ int AITrader::DetermineBuyQuantity(const std::string& commodity, double avg_pric
     if (range.first == 0 && range.second == 0) {
         //uninitialised range
         logger->Log(Log::WARN, "Tried to make bid with unitialised trading range");
-        return 0;
+        // initialize and retry with 0 and current_price * 2
+        observed_trading_range[commodity].push_back(0);
+        observed_trading_range[commodity].push_back(commodity_beliefs.GetCost(commodity)*2);
+        range = ObserveTradingRange(commodity, internal_lookback);
     }
     double favorability = PositionInRange(avg_price, range.first, range.second);
     favorability = 1 - favorability; //do 1 - favorability to see how close we are to the low end
