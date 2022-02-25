@@ -67,3 +67,8 @@ component_set ClientTraderComponentSet {
   id = 4005;
   components = [Metadata, improbable.Interest, ReportOfferResultComponent];
 }
+
+component_set TraderInterestSet {
+  id = 4006;
+  components = [Inventory, AIBuildings];
+}

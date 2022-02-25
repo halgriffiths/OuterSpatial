@@ -193,7 +193,10 @@ int main(int argc, char** argv) {
 
   connection.SendCommandRequest<AssignPartitionCommand>(
       connection.GetWorkerEntityId(), {auctionhousePartitionId}, /* default timeout */ {});
-  auto AH_ptr = std::make_shared<AuctionHouse>(connection, view, 10, Log::INFO);
+
+  const int TARGET_TICK_TIME_MS = 500;
+
+  auto AH_ptr = std::make_shared<AuctionHouse>(connection, view, 10, TARGET_TICK_TIME_MS, Log::INFO);
   auto last_tick_time = std::chrono::steady_clock::now();
   Commodity food("food", 0.5, 3010);
   Commodity wood("wood", 1, 3011);
@@ -209,7 +212,7 @@ int main(int argc, char** argv) {
   AH_ptr->RegisterCommodity(metal);
   AH_ptr->RegisterCommodity(tools);
 
-  const int TARGET_TICK_TIME_MS = 500;
+
   int timedelta_ms;
   while (is_connected) {
     view.Process(connection.GetOpList(kGetOpListTimeoutInMilliseconds));

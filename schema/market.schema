@@ -84,3 +84,38 @@ component_set ServerMarketComponentSet {
   id = 3020;
   components = [RegisterCommandComponent, MakeOfferCommandComponent, RequestProductionComponent, RequestShutdownComponent, DemographicInfo, FoodMarket, WoodMarket, FertilizerMarket, OreMarket, MetalMarket, ToolsMarket];
 }
+
+component_set FarmerInterestSet {
+  id = 3021;
+  components = [FoodMarket, WoodMarket, FertilizerMarket, ToolsMarket];
+}
+
+component_set WoodcutterInterestSet {
+  id = 3022;
+  components = [FoodMarket, WoodMarket, ToolsMarket];
+}
+
+component_set ComposterInterestSet {
+id = 3023;
+components = [FoodMarket, FertilizerMarket];
+}
+
+component_set MinerInterestSet {
+  id = 3024;
+  components = [FoodMarket, ToolsMarket, OreMarket];
+}
+
+component_set RefinerInterestSet {
+  id = 3025;
+  components = [FoodMarket, ToolsMarket, OreMarket, MetalMarket];
+}
+
+component_set BlacksmithInterestSet {
+  id = 3026;
+  components = [FoodMarket, ToolsMarket, MetalMarket];
+}
+
+component_set ALlMarketsInterestSet {
+  id = 3027;
+  components = [FoodMarket, WoodMarket, FertilizerMarket, OreMarket, MetalMarket, ToolsMarket];
+}
