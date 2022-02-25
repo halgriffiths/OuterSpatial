@@ -40,33 +40,25 @@ namespace {
 
 class AITrader : public Trader {
 private:
-    std::atomic<bool> queue_active = true;
-
-    std::string unique_name;
-    
     int TICK_TIME_MS;
-
     int MAX_PROCESSED_MESSAGES_PER_FLUSH = 100;
-
-    std::mt19937 rng_gen = std::mt19937(std::random_device()());
-    double tracked_costs = 0;
     double MIN_COST = 10;
     double MIN_PRICE = 0.10;
-    bool ready = false;
 
+    std::string unique_name;
+    std::mt19937 rng_gen = std::mt19937(std::random_device()());
     messages::AIRole role = messages::AIRole::NONE;
-    CommodityBeliefs commodity_beliefs;
+
     int auction_house_id = -1;
 
+    double tracked_costs = 0;
     std::map<std::string, std::vector<double>> observed_trading_range;
-
-    int  external_lookback = 50*TICK_TIME_MS; //history range (num ticks)
+    CommodityBeliefs commodity_beliefs;
+    
+    int external_lookback = 50*TICK_TIME_MS; //history range (num ticks)
     int internal_lookback = 50; //history range (num trades)
 
-    double IDLE_TAX = 20;
     std::unique_ptr<Logger> logger;
-
-    double money;
 
 public:
     std::atomic<TraderStatus> status = TraderStatus::UNINITIALISED;
@@ -76,8 +68,7 @@ public:
     , unique_name("unregistered")
     , TICK_TIME_MS(tick_time_ms)
     , role(role)
-    , auction_house_id(auction_house_id)
-    , money(0){
+    , auction_house_id(auction_house_id) {
         //construct inv_inventory = Inventory(inv_capacity, starting_inv);
       MakeCallbacks();
       logger = std::make_unique<SpatialLogger>(verbosity, "unregistered", connection);
@@ -117,14 +108,11 @@ public:
     int Query(const std::string& name);
     double QueryCost(const std::string& name);
 
-    double GetIdleTax() { return IDLE_TAX;};
-    double QueryMoney() { return money;};
+    double GetIdleTax() { return view.Entities[id].Get<trader::AIBuildings>()->idle_tax();};
+    double QueryMoney() { return view.Entities[id].Get<trader::Inventory>()->cash();};
 protected:
 
     // EXTERNAL SETTERS (i.e. for auction house & role only)
-    double TryTakeMoney(double quantity, bool atomic) override;
-    void ForceTakeMoney(double quantity) override;
-    void AddMoney(double quantity) override;
     double QuerySpace();
     int QueryShortage(const std::string& commodity);
     int QuerySurplus(const std::string& commodity);
@@ -238,30 +226,6 @@ void AITrader::UpdatePriceModelFromProduction(worker::Map<std::basic_string<char
       commodity_beliefs.commodity_beliefs[item.first].cost *= std::pow(1.3, -1*item.second);
     }
 };
-double AITrader::TryTakeMoney(double quantity, bool atomic) {
-    double amount_transferred;
-    if (!atomic) {
-        // Take what you can
-        amount_transferred = std::min(money, quantity);
-    } else {
-        if (money < quantity) {
-            logger->Log(Log::DEBUG, "Failed to take $"+std::to_string(quantity));
-            amount_transferred = 0;
-        } else {
-            amount_transferred = quantity;
-        }
-    }
-    money -= amount_transferred;
-    return amount_transferred;
-}
-void AITrader::ForceTakeMoney(double quantity) {
-    logger->Log(Log::DEBUG, "Lost money: $" + std::to_string(quantity));
-    money -= quantity;
-}
-void AITrader::AddMoney(double quantity) {
-    logger->Log(Log::DEBUG, "Gained money: $" + std::to_string(quantity));
-    money += quantity;
-}
 
 int AITrader::GetIdeal(const std::string& name) {
     return commodity_beliefs.GetIdeal(name);
@@ -361,7 +325,7 @@ void AITrader::GenerateOffers(const std::string& commodity) {
             logger->Log(Log::DEBUG, "Considering bid for "+commodity + std::string(" - Current shortage = ") + std::to_string(shortage));
 
             double desperation = 1;
-            double days_savings = money / IDLE_TAX;
+            double days_savings = QueryMoney() / GetIdleTax();
             desperation *= ( 5 /(days_savings*days_savings)) + 1;
             desperation *= 1 - (0.4*(fulfillment - 0.5))/(1 + 0.4*std::abs(fulfillment-0.5));
             auto offer = CreateBid(commodity, min_limit, max_limit, desperation);
@@ -381,7 +345,7 @@ BidOffer AITrader::CreateBid(const std::string& commodity, int min_limit, int ma
     }
     fair_bid_price = price_info->recent_price();
     //scale between price based on need
-    double max_price = money;
+    double max_price = QueryMoney();
     double min_price = MIN_PRICE;
     double bid_price = fair_bid_price *desperation;
     bid_price = std::max(std::min(max_price, bid_price), min_price);
@@ -476,7 +440,7 @@ void AITrader::Tick() {
                 GenerateOffers(commodity.first);
             }
         }
-        if (money <= 0) {
+        if (QueryMoney() <= 0) {
           RequestShutdown();
         }
         if (status == ACTIVE) {

@@ -72,7 +72,7 @@ std::string GetProducer(std::string& commodity) {
 }
 
 messages::AIRole ChooseNewClassRandom(std::mt19937& gen) {
-  std::uniform_int_distribution<> random_job(0, 7); // hardcoded to match messages.schema
+  std::uniform_int_distribution<> random_job(2, 4); // hardcoded to match messages.schema
   return static_cast<messages::AIRole>(random_job(gen));
 }
 

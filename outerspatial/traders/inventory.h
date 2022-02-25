@@ -63,6 +63,13 @@ public:
     }
     return commodity_beliefs.at(name).ideal;
   }
+
+  void SetIdeal(const std::string& name, int new_ideal) {
+    if (commodity_beliefs.count(name) != 1) {
+      return;// no entry found
+    }
+    commodity_beliefs[name].ideal = new_ideal;
+  }
 };
 
 class InventoryItem {
