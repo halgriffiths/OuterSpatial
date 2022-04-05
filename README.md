@@ -8,7 +8,7 @@ This new project aims to rectify both those issues, and the pipe-dream is for th
  - [x] Non-spatialOS tick-based prototype
  - [x] Non-spatialOS multithreaded asynchronous prototype
  - [x] Economy mechanics ported to SpatialOS
- - [ ] AI behaviour ported and tweaked for SpatialOS
+ - [x] AI behaviour ported and tweaked for SpatialOS
  - [ ] Live terminal plotting
  - [ ] Primitive TUI
  - [ ] Implement human-players with associated UI elements
